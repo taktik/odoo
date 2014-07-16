@@ -32,6 +32,7 @@ import unittest
 from os.path import join as opj
 
 import unittest2
+import xmlrunner
 
 import openerp
 import openerp.tools as tools
@@ -432,7 +433,9 @@ def run_unit_tests(module_name, dbname, position=runs_at_install):
             t0 = time.time()
             t0_sql = openerp.sql_db.sql_counter
             _logger.info('%s running tests.', m.__name__)
-            result = unittest2.TextTestRunner(verbosity=2, stream=TestStream(m.__name__)).run(suite)
+            #result = unittest2.TextTestRunner(verbosity=2, stream=TestStream(m.__name__)).run(suite)
+            runner = xmlrunner.XMLTestRunner(output="../../test_reports/xml/", verbosity=2, stream=tools.MyStream())
+            result = runner.run(suite)
             if time.time() - t0 > 5:
                 _logger.log(25, "%s tested in %.2fs, %s queries", m.__name__, time.time() - t0, openerp.sql_db.sql_counter - t0_sql)
             if not result.wasSuccessful():

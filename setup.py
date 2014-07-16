@@ -192,7 +192,7 @@ setuptools.setup(
       extras_require = {
           'SSL' : ['pyopenssl'],
       },
-      tests_require = ['unittest2', 'mock'],
+      tests_require = ['unittest2', 'mock', 'unittest-xml-reporting'],
       **py2exe_options()
 )
 

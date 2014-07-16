@@ -16,6 +16,11 @@ import re
 from lxml import etree
 from openerp import SUPERUSER_ID
 
+import os
+from unittest2.case import TestCase
+import unittest2
+import xmlrunner
+
 # YAML import needs both safe and unsafe eval, but let's
 # default to /safe/.
 unsafe_eval = eval
@@ -952,13 +957,59 @@ class YamlInterpreter(object):
             is_preceded_by_comment = False
         return is_preceded_by_comment
 
+class YamlUnitTesterInterpreter(YamlInterpreter, TestCase):
+    def __init__(self, methodName=None):
+        TestCase.__init__(self, methodName)
+
+    def _log_assert_failure(self, msg, *args):
+        super(YamlUnitTesterInterpreter, self)._log_assert_failure(msg, args)
+        if args:
+            msg = msg % args
+        raise self.failureException(msg)
+
+    def test_yaml(self):
+        YamlInterpreter.__init__(self, *self.initArgs)
+        self.process(self.yaml_string)
+
+
+class MyStream(object):
+    def __init__(self):
+        self.r = re.compile(r'^-*$|^ *... *$|^ok$')
+
+    def flush(self):
+        pass
+
+    def write(self, s):
+        if self.r.match(s):
+            return
+        first = True
+        for c in s.split('\n'):
+            if not first:
+                c = '` ' + c
+            first = False
+            _logger.log(logging.DEBUG, c)
+
 def yaml_import(cr, module, yamlfile, kind, idref=None, mode='init', noupdate=False, report=None):
     if idref is None:
         idref = {}
     loglevel = logging.DEBUG
     yaml_string = yamlfile.read()
-    yaml_interpreter = YamlInterpreter(cr, module, idref, mode, filename=yamlfile.name, report=report, noupdate=noupdate, loglevel=loglevel)
-    yaml_interpreter.process(yaml_string)
+    if kind == 'test':
+        from openerp import tools  # does not work in module prelude (loop?)
+        pyinit = tools.file_open('/'.join((module, '__init__.py')))
+        basepath = os.path.dirname(pyinit.name)
+        pyinit.close()
+        paths = os.path.relpath(yamlfile.name, basepath).split(os.sep)
+        class_name = paths[-1].replace(".", "_")
+        module_name = "openerp.addons.%s." % module + ".".join(paths[:-1])
+        cls = type(str(class_name), (YamlUnitTesterInterpreter,), {"__module__": module_name,"initArgs": (cr, module, idref, mode, yamlfile.name, report,noupdate, loglevel),"yaml_string": yaml_string})
+        suite = unittest2.TestSuite()
+        suite.addTests(unittest2.TestLoader().loadTestsFromTestCase(cls))
+        runner = xmlrunner.XMLTestRunner(output="../../test_reports/xml/", verbosity=2, stream=MyStream())
+        runner.run(suite)
+    else:
+        yaml_interpreter = YamlInterpreter(cr, module, idref, mode, filename=yamlfile.name, report=report, noupdate=noupdate, loglevel=loglevel)
+        yaml_interpreter.process(yaml_string)
 
 # keeps convention of convert.py
 convert_yaml_import = yaml_import
