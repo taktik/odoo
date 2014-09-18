@@ -41,7 +41,7 @@
         'stock_calendar_view.xml'
     ],
     'test': [
-        'test/'
+        'test/orderpoint_calendar.yml'
     ],
     'installable': True,
     'application': True,
