@@ -39,8 +39,10 @@ class procurement_order(osv.osv):
            :rtype: datetime
            :return: the desired Order Date for the PO
         """
+        calendar_obj = self.pool.get('resource.calendar')
         if procurement.orderpoint_id.purchase_calendar_id:
-            return datetime.strptime(procurement.orderpoint_id.purchase_calendar_id.next_day, DEFAULT_SERVER_DATETIME_FORMAT)
+            res = calendar_obj._schedule_days(cr, uid, procurement.orderpoint_id.purchase_calendar_id.id, 1, datetime.utcnow(), compute_leaves=True, context=context)
+            return res[0][0]
         seller_delay = int(procurement.product_id.seller_delay)
         return schedule_date - relativedelta(days=seller_delay)
 
