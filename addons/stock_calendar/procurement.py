@@ -1,14 +1,10 @@
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from operator import itemgetter
-
 from openerp.osv import fields, osv
 from openerp.tools.translate import _
 from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FORMAT
 from openerp import SUPERUSER_ID
 from psycopg2 import OperationalError
-
-
 
 class procurement_group(osv.osv):
     _inherit = 'procurement.group'
@@ -88,14 +84,17 @@ class procurement_order(osv.osv):
             att_group = False
             if res:
                 att_group = att_obj.browse(cr, uid, res[0][2], context=context).group_id.id
-            #TODO: Safety pall for endless loops!#
-            while res != False and att_group != group:
+            #number as safety pall for endless loops
+            number = 0
+            while res != False and att_group != group or number > 100:
+                number += 1
                 new_date = res[0][1] + relativedelta(days=1)
                 res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
                 att_group = False
                 if res:
                     att_group = att_obj.browse(cr, uid, res[0][2], context=context).group_id.id
-
+            if number > 100:
+                res = False
         if res:
             date1 = res[0][1]
             new_date = res[0][1] + relativedelta(days=1)
@@ -141,7 +140,7 @@ class procurement_order(osv.osv):
             intervals = calendar_obj._schedule_days(cr, uid, orderpoint.purchase_calendar_id.id, 1, new_date, compute_leaves=True, context=context)
             for interval in intervals:
                 # If last execution date, interval should start after it in order not to execute the same orderpoint twice
-                if (orderpoint.last_execution_date and (interval[0] > new_date and interval[0] < datetime.utcnow() and interval[1] > datetime.utcnow())) or (interval[0] < new_date and interval[1] > new_date):
+                if (orderpoint.last_execution_date and (interval[0] > new_date and interval[0] < datetime.utcnow() and interval[1] > datetime.utcnow())) or (not orderpoint.last_execution_date and interval[0] < new_date and interval[1] > new_date):
                     execute = True
                     group = att_obj.browse(cr, uid, interval[2], context=context).group_id.id
                     date = interval[1]
@@ -215,7 +214,6 @@ class procurement_order(osv.osv):
             cr.commit()
             cr.close()
         return {}
-
 
 
     def make_po(self, cr, uid, ids, context=None):
