@@ -534,6 +534,7 @@ class resource_calendar(osv.osv):
             current_datetime = day_date.replace(hour=0, minute=0, second=0)
 
         while planned_days < days and iterations < 1000:
+            import pdb; pdb.set_trace()
             working_intervals = self.get_working_intervals_of_day(
                 cr, uid, id, current_datetime,
                 compute_leaves=compute_leaves, resource_id=resource_id,
