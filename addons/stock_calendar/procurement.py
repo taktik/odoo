@@ -45,7 +45,7 @@ class procurement_order(osv.osv):
     def _get_orderpoint_date_planned(self, cr, uid, orderpoint, start_date, context=None):
         date_planned = start_date
         if orderpoint.calendar_id:
-            date_planned, date2 = self._get_next_dates(cr, uid, orderpoint)
+            date_planned, date2 = self._get_next_dates(cr, uid, orderpoint, context=context)
         return date_planned.strftime(DEFAULT_SERVER_DATE_FORMAT)
 
     def _prepare_orderpoint_procurement(self, cr, uid, orderpoint, product_qty, group=False, context=None):
@@ -70,9 +70,11 @@ class procurement_order(osv.osv):
         context = context or {}
         context['no_round_hours'] = True
         if not new_date:
-            new_date = datetime.utcnow()
+            new_date = self._convert_to_tz(cr, uid, datetime.utcnow(), context=context)
+        now_date = self._convert_to_tz(cr, uid, datetime.utcnow(), context=context)
+
         res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
-        if res and res[0][0] < datetime.utcnow():
+        if res and res[0][0] < now_date:
             new_date = res[0][1] + relativedelta(days=1)
             res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
         att_group = False
@@ -106,17 +108,27 @@ class procurement_order(osv.osv):
         else:
             return (False, False)
 
-    def _product_virtual_get(self, cr, uid, order_point):
+    def _product_virtual_get(self, cr, uid, order_point, context=None):
         product_obj = self.pool.get('product.product')
         ctx={'location': order_point.location_id.id}
         if order_point.calendar_id:
-            date1, date2 = self._get_next_dates(cr, uid, order_point)
+            date1, date2 = self._get_next_dates(cr, uid, order_point, context=context)
             if not date1 or not date2:
                 return 0.0
             ctx.update({'to_date': date2.strftime(DEFAULT_SERVER_DATETIME_FORMAT)})
         return product_obj._product_available(cr, uid,
                 [order_point.product_id.id],
                 context=ctx)[order_point.product_id.id]['virtual_available']
+
+
+    def _convert_to_tz(self, cr, uid, date, context=None):
+        if not context or not context.get('tz'):
+            return False
+        import pytz
+        utc_date = pytz.UTC.localize(date)
+        timezone = pytz.timezone(context['tz'])
+        return utc_date.astimezone(timezone)
+
 
     def _get_group(self, cr, uid, orderpoint, context=None):
         """
@@ -137,10 +149,14 @@ class procurement_order(osv.osv):
                 new_date = datetime.strptime(orderpoint.last_execution_date, DEFAULT_SERVER_DATETIME_FORMAT)
             else:
                 new_date = datetime.utcnow()
+            # Convert to timezone of ut
+            new_date = self._convert_to_tz(cr, uid, new_date, context=context)
+            now_date = self._convert_to_tz(cr, uid, datetime.utcnow(), context=context)
+            import pdb; pdb.set_trace()
             intervals = calendar_obj._schedule_days(cr, uid, orderpoint.purchase_calendar_id.id, 1, new_date, compute_leaves=True, context=context)
             for interval in intervals:
                 # If last execution date, interval should start after it in order not to execute the same orderpoint twice
-                if (orderpoint.last_execution_date and (interval[0] > new_date and interval[0] < datetime.utcnow() and interval[1] > datetime.utcnow())) or (not orderpoint.last_execution_date and interval[0] < new_date and interval[1] > new_date):
+                if (orderpoint.last_execution_date and (interval[0] > new_date and interval[0] < now_date and interval[1] > now_date)) or (not orderpoint.last_execution_date and interval[0] < now_date and interval[1] > now_date):
                     execute = True
                     group = att_obj.browse(cr, uid, interval[2], context=context).group_id.id
                     date = interval[1]
@@ -173,7 +189,7 @@ class procurement_order(osv.osv):
                     execute, group, new_date = self._get_group(cr, uid, op, context=context)
                     if not execute:
                         continue
-                    prods = self._product_virtual_get(cr, uid, op)
+                    prods = self._product_virtual_get(cr, uid, op, context=context)
                     if prods is None:
                         continue
                     if prods < op.product_min_qty:
