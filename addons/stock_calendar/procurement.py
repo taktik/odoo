@@ -149,10 +149,9 @@ class procurement_order(osv.osv):
                 new_date = datetime.strptime(orderpoint.last_execution_date, DEFAULT_SERVER_DATETIME_FORMAT)
             else:
                 new_date = datetime.utcnow()
-            # Convert to timezone of ut
+            # Convert to timezone of user
             new_date = self._convert_to_tz(cr, uid, new_date, context=context)
             now_date = self._convert_to_tz(cr, uid, datetime.utcnow(), context=context)
-            import pdb; pdb.set_trace()
             intervals = calendar_obj._schedule_days(cr, uid, orderpoint.purchase_calendar_id.id, 1, new_date, compute_leaves=True, context=context)
             for interval in intervals:
                 # If last execution date, interval should start after it in order not to execute the same orderpoint twice
