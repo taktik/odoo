@@ -5,6 +5,7 @@ from openerp.tools.translate import _
 from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FORMAT
 from openerp import SUPERUSER_ID
 from psycopg2 import OperationalError
+import pytz
 
 class procurement_group(osv.osv):
     _inherit = 'procurement.group'
@@ -123,8 +124,7 @@ class procurement_order(osv.osv):
 
     def _convert_to_tz(self, cr, uid, date, context=None):
         if not context or not context.get('tz'):
-            return False
-        import pytz
+            return date
         utc_date = pytz.UTC.localize(date)
         timezone = pytz.timezone(context['tz'])
         return utc_date.astimezone(timezone)
