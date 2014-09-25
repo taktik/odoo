@@ -75,12 +75,16 @@ class procurement_order(osv.osv):
 
         # Search first calendar day (without group)
         res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
-        att_group = False
+        att_group = res and res[0][2] and att_obj.browse(cr, uid, res[0][2], context=context).group_id.id or False
+        #If hours are smaller than the current date, search a day further
+        #TODO: maybe there could be stuff at the same day
         if res and res[0][0] < now_date:
             new_date = res[0][1] + relativedelta(days=1)
             res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
-            if res:
+            if res and res[0][2]:
                 att_group = att_obj.browse(cr, uid, res[0][2], context=context).group_id.id
+            else:
+                att_group = False
 
         # If you can find an entry and you have a group to match, but it does not, search further until you find one that corresponds
         number = 0
@@ -89,8 +93,10 @@ class procurement_order(osv.osv):
             new_date = res[0][1] + relativedelta(days=1)
             res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
             att_group = False
-            if res:
+            if res and res[0][2]:
                 att_group = att_obj.browse(cr, uid, res[0][2], context=context).group_id.id
+            else:
+                att_group = False
         #number as safety pall for endless loops
         if number >= 100:
             res = False
@@ -107,7 +113,7 @@ class procurement_order(osv.osv):
 
     def _product_virtual_get(self, cr, uid, order_point, context=None):
         product_obj = self.pool.get('product.product')
-        ctx=context.copy()
+        ctx = context.copy()
         ctx.update({'location': order_point.location_id.id})
         return product_obj._product_available(cr, uid,
                 [order_point.product_id.id],
