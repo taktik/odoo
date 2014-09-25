@@ -148,6 +148,8 @@ class procurement_order(osv.osv):
             att_group = False
             if res and res[0][2]:
                 att_group = att_obj.browse(cr, uid, res[0][2], context=context).group_id.id
+            else:
+                att_group = False
         #number as safety pall for endless loops
         if number >= 100:
             res = False
