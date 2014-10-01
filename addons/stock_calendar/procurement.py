@@ -13,6 +13,8 @@ class procurement_group(osv.osv):
     _columns = {
         'propagate_to_purchase': fields.boolean('Propagate grouping to purchase order',
                                                 help="When from a procurement belonging to this procurement group a purchase order is made, purchase orders will be grouped by this procurement group"),
+        'next_delivery_date': fields.datetime('Next Delivery Date',
+                                              help="The date of the next delivery for this procurement group, when this group is on the purchase calendar of the orderpoint")
         }
 
 
@@ -95,8 +97,6 @@ class procurement_order(osv.osv):
             att_group = False
             if res and res[0][2]:
                 att_group = att_obj.browse(cr, uid, res[0][2], context=context).group_id.id
-            else:
-                att_group = False
         #number as safety pall for endless loops
         if number >= 100:
             res = False
@@ -181,6 +181,7 @@ class procurement_order(osv.osv):
         while orderpoint_ids:
             ids = orderpoint_ids[:100]
             del orderpoint_ids[:100]
+
             for op in orderpoint_obj.browse(cr, uid, ids, context=context):
                 try:
                     date_groups = self._get_group(cr, uid, op, context=context)
@@ -207,8 +208,10 @@ class procurement_order(osv.osv):
                                 proc_id = procurement_obj.create(cr, uid,
                                                                  self._prepare_orderpoint_procurement(cr, uid, op, qty, date=date, group=group, context=context),
                                                                  context=context)
-                                self.check(cr, uid, [proc_id])
-                                self.run(cr, uid, [proc_id])
+                                if group:
+                                    self.pool.get("procurement.group").write(cr, uid, [group], {'next_delivery_date': date1}, context=context)
+                                self.check(cr, uid, [proc_id], context=context)
+                                self.run(cr, uid, [proc_id], context=context)
                                 orderpoint_obj.write(cr, uid, [op.id], {'last_execution_date': datetime.utcnow().strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
                     if use_new_cursor:
                         cr.commit()
@@ -251,7 +254,11 @@ class procurement_order(osv.osv):
                 self.message_post(cr, uid, [procurement.id], _('There is no supplier associated to product %s') % (procurement.product_id.name))
                 res[procurement.id] = False
             else:
-                schedule_date = self._get_purchase_schedule_date(cr, uid, procurement, company, context=context)
+                if procurement.group_id and procurement.group_id.next_delivery_date:
+                    next_deliv_date = procurement.group_id.next_delivery_date
+                    schedule_date = datetime.strptime(next_deliv_date, DEFAULT_SERVER_DATETIME_FORMAT)
+                else:
+                    schedule_date = self._get_purchase_schedule_date(cr, uid, procurement, company, context=context)
                 purchase_date = self._get_purchase_order_date(cr, uid, procurement, company, schedule_date, context=context)
                 line_vals = self._get_po_line_values_from_proc(cr, uid, procurement, partner, company, schedule_date, context=context)
                 dom = [
