@@ -176,52 +176,79 @@ class procurement_order(osv.osv):
 
         procurement_obj = self.pool.get('procurement.order')
         dom = company_id and [('company_id', '=', company_id)] or []
-        orderpoint_ids = orderpoint_obj.search(cr, uid, dom)
+        orderpoint_ids = orderpoint_obj.search(cr, uid, dom, order="location_id, purchase_calendar_id, calendar_id")
+        product_obj = self.pool.get('product.product')
         prev_ids = []
         while orderpoint_ids:
             ids = orderpoint_ids[:100]
             del orderpoint_ids[:100]
+            dates_dict = {}
+            product_dict = {}
+            ops_dict = {}
+            ops = orderpoint_obj.browse(cr, uid, ids, context=context)
 
-            for op in orderpoint_obj.browse(cr, uid, ids, context=context):
-                try:
+            #Calculate groups
+            for op in ops:
+                key = (op.location_id.id, op.purchase_calendar_id.id, op.calendar_id.id)
+                res_groups=[]
+                if not dates_dict.get(key):
                     date_groups = self._get_group(cr, uid, op, context=context)
                     for date, group in date_groups:
-                        ctx = context.copy()
                         if op.calendar_id:
                             date1, date2 = self._get_next_dates(cr, uid, op, date, group, context=context)
-                            ctx.update({'to_date': date2.strftime(DEFAULT_SERVER_DATETIME_FORMAT)})
-                        prods = self._product_virtual_get(cr, uid, op, context=ctx)
-                        if prods is None:
-                            continue
-                        if prods < op.product_min_qty:
-                            qty = max(op.product_min_qty, op.product_max_qty) - prods
-                            reste = op.qty_multiple > 0 and qty % op.qty_multiple or 0.0
-                            if reste > 0:
-                                qty += op.qty_multiple - reste
+                            res_groups += [(group, date1, date2)]
+                        else:
+                            res_groups += [(group, date, False)]
+                    dates_dict[key] = res_groups
+                    product_dict[key] = [op.product_id]
+                    ops_dict[key] = [op]
+                else:
+                    product_dict[key] += [op.product_id]
+                    ops_dict[key] += [op]
 
-                            if qty <= 0:
+            for key in product_dict.keys():
+                for res_group in dates_dict[key]:
+                    ctx = context.copy()
+                    ctx.update({'location': ops_dict[key][0].location_id.id})
+                    if res_group[2]:
+                        ctx.update({'to_date': res_group[2].strftime(DEFAULT_SERVER_DATETIME_FORMAT)})
+                    prod_qty = product_obj._product_available(cr, uid, [x.id for x in product_dict[key]],
+                    context=ctx)
+                    group = res_group[0]
+                    date = res_group[1]
+                    for op in ops_dict[key]:
+                        try:
+                            prods = prod_qty[op.product_id.id]['virtual_available']
+                            if prods is None:
                                 continue
+                            if prods < op.product_min_qty:
+                                qty = max(op.product_min_qty, op.product_max_qty) - prods
+                                reste = op.qty_multiple > 0 and qty % op.qty_multiple or 0.0
+                                if reste > 0:
+                                    qty += op.qty_multiple - reste
 
-                            qty -= orderpoint_obj.subtract_procurements(cr, uid, op, context=context)
+                                if qty <= 0:
+                                    continue
 
-                            if qty > 0:
-                                proc_id = procurement_obj.create(cr, uid,
-                                                                 self._prepare_orderpoint_procurement(cr, uid, op, qty, date=date, group=group, context=context),
-                                                                 context=context)
-                                if group:
-                                    self.pool.get("procurement.group").write(cr, uid, [group], {'next_delivery_date': date1}, context=context)
-                                self.check(cr, uid, [proc_id], context=context)
-                                self.run(cr, uid, [proc_id], context=context)
-                                orderpoint_obj.write(cr, uid, [op.id], {'last_execution_date': datetime.utcnow().strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
-                    if use_new_cursor:
-                        cr.commit()
-                except OperationalError:
-                    if use_new_cursor:
-                        orderpoint_ids.append(op.id)
-                        cr.rollback()
-                        continue
-                    else:
-                        raise
+                                qty -= orderpoint_obj.subtract_procurements(cr, uid, op, context=context)
+
+                                if qty > 0:
+                                    proc_id = procurement_obj.create(cr, uid,
+                                                                     self._prepare_orderpoint_procurement(cr, uid, op, qty, date=date, group=group, context=context),
+                                                                     context=context)
+                                    if group and date:
+                                        self.pool.get("procurement.group").write(cr, uid, [group], {'next_delivery_date': date1}, context=context)
+                                    self.run(cr, uid, [proc_id], context=context)
+                                    orderpoint_obj.write(cr, uid, [op.id], {'last_execution_date': datetime.utcnow().strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
+                                if use_new_cursor:
+                                    cr.commit()
+                        except OperationalError:
+                            if use_new_cursor:
+                                orderpoint_ids.append(op.id)
+                                cr.rollback()
+                                continue
+                            else:
+                                raise
             if use_new_cursor:
                 cr.commit()
             if prev_ids == ids:
