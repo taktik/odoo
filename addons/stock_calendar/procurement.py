@@ -14,7 +14,9 @@ class procurement_group(osv.osv):
         'propagate_to_purchase': fields.boolean('Propagate grouping to purchase order',
                                                 help="When from a procurement belonging to this procurement group a purchase order is made, purchase orders will be grouped by this procurement group"),
         'next_delivery_date': fields.datetime('Next Delivery Date',
-                                              help="The date of the next delivery for this procurement group, when this group is on the purchase calendar of the orderpoint")
+                                              help="The date of the next delivery for this procurement group, when this group is on the purchase calendar of the orderpoint"),
+        'next_purchase_date': fields.datetime('Next Purchase Date',
+                                              help="The date the next purchase order should be sent to the supplier"),
         }
 
 
@@ -126,6 +128,12 @@ class procurement_order(osv.osv):
         timezone = pytz.timezone(context['tz'])
         return utc_date.astimezone(timezone)
 
+    def _convert_to_UTC(self, cr, uid, date, context=None):
+        """
+            The date should be timezone aware
+        """
+        return date.astimezone(pytz.UTC)
+
     def _get_group(self, cr, uid, orderpoint, context=None):
         """
             Will return the groups and the end dates of the intervals of the purchase calendar
@@ -187,7 +195,7 @@ class procurement_order(osv.osv):
             ops_dict = {}
             ops = orderpoint_obj.browse(cr, uid, ids, context=context)
 
-            #Calculate groups
+            #Calculate groups that can be executed together
             for op in ops:
                 key = (op.location_id.id, op.purchase_calendar_id.id, op.calendar_id.id)
                 res_groups=[]
@@ -196,16 +204,15 @@ class procurement_order(osv.osv):
                     for date, group in date_groups:
                         if op.calendar_id:
                             date1, date2 = self._get_next_dates(cr, uid, op, date, group, context=context)
-                            res_groups += [(group, date1, date2)]
+                            res_groups += [(group, date1, date2, date)] #date1/date2 as deliveries and date as purchase confirmation date
                         else:
-                            res_groups += [(group, date, False)]
+                            res_groups += [(group, date, False, date)]
                     dates_dict[key] = res_groups
                     product_dict[key] = [op.product_id]
                     ops_dict[key] = [op]
                 else:
                     product_dict[key] += [op.product_id]
                     ops_dict[key] += [op]
-
             for key in product_dict.keys():
                 for res_group in dates_dict[key]:
                     ctx = context.copy()
@@ -234,10 +241,12 @@ class procurement_order(osv.osv):
 
                                 if qty > 0:
                                     proc_id = procurement_obj.create(cr, uid,
-                                                                     self._prepare_orderpoint_procurement(cr, uid, op, qty, date=date, group=group, context=context),
+                                                                     self._prepare_orderpoint_procurement(cr, uid, op, qty, date=self._convert_to_UTC(cr, uid, date, context=context), group=group, context=context),
                                                                      context=context)
                                     if group and date:
-                                        self.pool.get("procurement.group").write(cr, uid, [group], {'next_delivery_date': date1}, context=context)
+                                        npurchase = self._convert_to_UTC(cr, uid, res_group[3], context=context)
+                                        ndelivery = self._convert_to_UTC(cr, uid, date1, context=context)
+                                        self.pool.get("procurement.group").write(cr, uid, [group], {'next_purchase_date': npurchase, 'next_delivery_date': ndelivery}, context=context)
                                     self.run(cr, uid, [proc_id], context=context)
                                     orderpoint_obj.write(cr, uid, [op.id], {'last_execution_date': datetime.utcnow().strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
                                 if use_new_cursor:
@@ -286,7 +295,10 @@ class procurement_order(osv.osv):
                     schedule_date = datetime.strptime(next_deliv_date, DEFAULT_SERVER_DATETIME_FORMAT)
                 else:
                     schedule_date = self._get_purchase_schedule_date(cr, uid, procurement, company, context=context)
-                purchase_date = self._get_purchase_order_date(cr, uid, procurement, company, schedule_date, context=context)
+                if procurement.group_id and procurement.group_id.next_purchase_date:
+                    purchase_date = datetime.strptime(procurement.group_id.next_purchase_date, DEFAULT_SERVER_DATETIME_FORMAT)
+                else:
+                    purchase_date = self._get_purchase_order_date(cr, uid, procurement, company, schedule_date, context=context)
                 line_vals = self._get_po_line_values_from_proc(cr, uid, procurement, partner, company, schedule_date, context=context)
                 dom = [
                     ('partner_id', '=', partner.id), ('state', '=', 'draft'), ('picking_type_id', '=', procurement.rule_id.picking_type_id.id),
