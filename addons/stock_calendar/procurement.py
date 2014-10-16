@@ -68,6 +68,34 @@ class procurement_order(osv.osv):
             'group_id': group or orderpoint.group_id.id,
         }
 
+
+    def _get_previous_dates(self, cr, uid, orderpoint, start_date = False, context=None):
+        """
+        Date should be given in utc
+        """
+        calendar_obj = self.pool.get('resource.calendar')
+        att_obj = self.pool.get('resource.calendar.attendance')
+        # First check if the orderpoint has a Calendar as it should be delivered at this calendar date
+        purchase_date = False
+        delivery_date = start_date
+        if orderpoint.calendar_id:
+            res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, -1, start_date, compute_leaves=True, context=context)
+            if res and res[0][0] < start_date:
+                group_to_find = res[0][2] and att_obj.browse(cr, uid, res[0][2], context=context).group_id.id or False
+                delivery_date = res[0][0]
+                group = False
+                found_date = delivery_date
+                if orderpoint.purchase_calendar_id:
+                    while not purchase_date:
+                        res = calendar_obj._schedule_days(cr, uid, orderpoint.purchase_calendar_id.id, -1, found_date, compute_leaves=True, context=context)
+                        for re in res:
+                            group = res[2] and att_obj.browse(cr, uid, res[2], context=context).group_id.id or False
+                            if not purchase_date and (group_to_find and group_to_find == group or (not group_to_find)):
+                                purchase_date = res[0]
+        else:
+            delivery_date = start_date or datetime.utcnow()
+        return purchase_date, delivery_date
+
     def _get_next_dates(self, cr, uid, orderpoint, new_date=False, group=False, context=None):
         calendar_obj = self.pool.get('resource.calendar')
         att_obj = self.pool.get('resource.calendar.attendance')
