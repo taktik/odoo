@@ -160,6 +160,8 @@ class procurement_order(osv.osv):
         """
             The date should be timezone aware
         """
+        if not context or not context.get('tz'):
+            return date
         return date.astimezone(pytz.UTC)
 
     def _get_group(self, cr, uid, orderpoint, context=None):
