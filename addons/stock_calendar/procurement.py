@@ -30,6 +30,23 @@ class purchase_order(osv.osv):
 class procurement_order(osv.osv):
     _inherit = 'procurement.order'
 
+    def assign_group_date(self, cr, uid, ids, context=None):
+        orderpoint_obj = self.pool.get("stock.warehouse.orderpoint")
+        group_obj = self.pool.get("procurement.group")
+        for procurement in self.browse(cr, uid, ids, context=context):
+            ops = orderpoint_obj.search(cr, uid, [('location_id', '=', procurement.location_id.id),
+                                                  ('product_id', '=', procurement.product_id.id)], context=context)
+            if ops and ops[0]:
+                orderpoint = orderpoint_obj.browse(cr, uid, ops[0], context=context)
+                date_planned = datetime.strptime(procurement.date_planned, DEFAULT_SERVER_DATETIME_FORMAT)
+                purchase_date, delivery_date = self._get_previous_dates(cr, uid, orderpoint, date_planned, context=context)
+                if purchase_date and delivery_date:
+                    group = group_obj.create(cr, uid, {'propagate_to_purchase': True,
+                                           'next_delivery_date': delivery_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
+                                           'next_purchase_date': purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
+                                           'name': procurement.name}, context=context)
+                    self.write(cr, uid, [procurement.id], {'group_id': group}, context=context)
+
     def _get_purchase_order_date(self, cr, uid, procurement, company, schedule_date, context=None):
         """Return the datetime value to use as Order Date (``date_order``) for the
            Purchase Order created to satisfy the given procurement.
@@ -75,6 +92,8 @@ class procurement_order(osv.osv):
         """
         calendar_obj = self.pool.get('resource.calendar')
         att_obj = self.pool.get('resource.calendar.attendance')
+        context = context or {}
+        context['no_round_hours'] = True
         # First check if the orderpoint has a Calendar as it should be delivered at this calendar date
         purchase_date = False
         delivery_date = start_date
@@ -83,15 +102,15 @@ class procurement_order(osv.osv):
             if res and res[0][0] < start_date:
                 group_to_find = res[0][2] and att_obj.browse(cr, uid, res[0][2], context=context).group_id.id or False
                 delivery_date = res[0][0]
-                group = False
                 found_date = delivery_date
                 if orderpoint.purchase_calendar_id:
                     while not purchase_date:
                         res = calendar_obj._schedule_days(cr, uid, orderpoint.purchase_calendar_id.id, -1, found_date, compute_leaves=True, context=context)
                         for re in res:
-                            group = res[2] and att_obj.browse(cr, uid, res[2], context=context).group_id.id or False
+                            group = re[2] and att_obj.browse(cr, uid, re[2], context=context).group_id.id or False
+                            found_date = re[0]
                             if not purchase_date and (group_to_find and group_to_find == group or (not group_to_find)):
-                                purchase_date = res[0]
+                                purchase_date = re[0]
         else:
             delivery_date = start_date or datetime.utcnow()
         return purchase_date, delivery_date

@@ -528,10 +528,11 @@ class resource_calendar(osv.osv):
         intervals = []
         planned_days = 0
         iterations = 0
-        if backwards:
-            current_datetime = day_date.replace(hour=23, minute=59, second=59)
-        else:
-            current_datetime = day_date.replace(hour=0, minute=0, second=0)
+
+        # if backwards:
+        #     current_datetime = day_date.replace(hour=23, minute=59, second=59)
+        # else:
+        current_datetime = day_date.replace(hour=0, minute=0, second=0)
 
         while planned_days < days and iterations < 100:
             working_intervals = self.get_working_intervals_of_day(
