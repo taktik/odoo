@@ -64,8 +64,7 @@ class resource_calendar(osv.osv):
             # if current_interval[0] <= leave[1] <= current_interval[1]:
             if current_interval[0] <= leave[1]:
                 current_interval[0] = leave[1]
-        if current_interval and current_interval[0] < interval[
-            1]:  # remove intervals moved outside base interval due to leaves
+        if current_interval and current_interval[0] < interval[1]:  # remove intervals moved outside base interval due to leaves
             if len(interval) > 2:
                 intervals.append((current_interval[0], current_interval[1], interval[2]))
             else:
@@ -87,6 +86,73 @@ class resource_calendar(osv.osv):
                     res.append(att)
         return res
 
+    # --------------------------------------------------
+    # Days scheduling
+    # --------------------------------------------------
+
+    def _schedule_days(self, cr, uid, id, days, day_date=None, compute_leaves=False,
+                       resource_id=None, default_interval=None, context=None):
+        """Schedule days of work, using a calendar and an optional resource to
+        compute working and leave days. This method can be used backwards, i.e.
+        scheduling days before a deadline.
+
+        :param int days: number of days to schedule. Use a negative number to
+                         compute a backwards scheduling.
+        :param date day_date: reference date to compute working days. If days is > 0
+                              date is the starting date. If days is < 0 date is the
+                              ending date.
+        :param boolean compute_leaves: if set, compute the leaves based on calendar
+                                       and resource. Otherwise no leaves are taken
+                                       into account.
+        :param int resource_id: the id of the resource to take into account when
+                                computing the leaves. If not set, only general
+                                leaves are computed. If set, generic and
+                                specific leaves are computed.
+        :param tuple default_interval: if no id, try to return a default working
+                                       day using default_interval[0] as beginning
+                                       hour, and default_interval[1] as ending hour.
+                                       Example: default_interval = (8, 16).
+                                       Otherwise, a void list of working intervals
+                                       is returned when id is None.
+
+        :return tuple (datetime, intervals): datetime is the beginning/ending date
+                                             of the schedulign; intervals are the
+                                             working intervals of the scheduling.
+
+        Implementation note: rrule.rrule is not used because rrule it des not seem
+        to allow getting back in time.
+        """
+        if day_date is None:
+            day_date = datetime.datetime.now()
+        backwards = (days < 0)
+        days = abs(days)
+        intervals = []
+        planned_days = 0
+        iterations = 0
+
+        # if backwards:
+        #     current_datetime = day_date.replace(hour=23, minute=59, second=59)
+        # else:
+        current_datetime = day_date.replace(hour=0, minute=0, second=0)
+
+        while planned_days < days and iterations < 100:
+            working_intervals = self.get_working_intervals_of_day(
+                cr, uid, id, current_datetime,
+                compute_leaves=compute_leaves, resource_id=resource_id,
+                default_interval=default_interval,
+                context=context)
+            if id is None or working_intervals:  # no calendar -> no working hours, but day is considered as worked
+                planned_days += 1
+                intervals += working_intervals
+            # get next day
+            if backwards:
+                current_datetime = self.get_previous_day(cr, uid, id, current_datetime, context)
+            else:
+                current_datetime = self.get_next_day(cr, uid, id, current_datetime, context)
+            # avoid infinite loops
+            iterations += 1
+
+        return intervals
 
     def get_working_intervals_of_day(self, cr, uid, id, start_dt=None, end_dt=None,
                                      leaves=None, compute_leaves=False, resource_id=None,

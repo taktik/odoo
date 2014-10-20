@@ -42,8 +42,8 @@ class procurement_order(osv.osv):
                 purchase_date, delivery_date = self._get_previous_dates(cr, uid, orderpoint, date_planned, context=context)
                 if purchase_date and delivery_date:
                     group = group_obj.create(cr, uid, {'propagate_to_purchase': True,
-                                           'next_delivery_date': delivery_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
-                                           'next_purchase_date': purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
+                                           'next_delivery_date': self._convert_to_UTC(cr, uid, delivery_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT), context=context),
+                                           'next_purchase_date': self._convert_to_UTC(cr, uid, purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT), context=context),
                                            'name': procurement.name}, context=context)
                     self.write(cr, uid, [procurement.id], {'group_id': group}, context=context)
 
@@ -94,6 +94,8 @@ class procurement_order(osv.osv):
         att_obj = self.pool.get('resource.calendar.attendance')
         context = context or {}
         context['no_round_hours'] = True
+        # Date should be converted to the correct timezone
+        start_date = self._convert_to_tz(cr, uid, start_date, context=context)
         # First check if the orderpoint has a Calendar as it should be delivered at this calendar date
         purchase_date = False
         delivery_date = start_date
@@ -289,12 +291,12 @@ class procurement_order(osv.osv):
                                 qty -= orderpoint_obj.subtract_procurements(cr, uid, op, context=context)
 
                                 if qty > 0:
+                                    ndelivery = self._convert_to_UTC(cr, uid, date, context=context)
                                     proc_id = procurement_obj.create(cr, uid,
-                                                                     self._prepare_orderpoint_procurement(cr, uid, op, qty, date=self._convert_to_UTC(cr, uid, date, context=context), group=group, context=context),
+                                                                     self._prepare_orderpoint_procurement(cr, uid, op, qty, date=ndelivery, group=group, context=context),
                                                                      context=context)
-                                    if group and date:
+                                    if group and date and res_group[3]:
                                         npurchase = self._convert_to_UTC(cr, uid, res_group[3], context=context)
-                                        ndelivery = self._convert_to_UTC(cr, uid, date1, context=context)
                                         self.pool.get("procurement.group").write(cr, uid, [group], {'next_purchase_date': npurchase, 'next_delivery_date': ndelivery}, context=context)
                                     self.run(cr, uid, [proc_id], context=context)
                                     orderpoint_obj.write(cr, uid, [op.id], {'last_execution_date': datetime.utcnow().strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
