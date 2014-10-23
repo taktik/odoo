@@ -42,8 +42,8 @@ class procurement_order(osv.osv):
                 purchase_date, delivery_date = self._get_previous_dates(cr, uid, orderpoint, date_planned, context=context)
                 if purchase_date and delivery_date:
                     group = group_obj.create(cr, uid, {'propagate_to_purchase': True,
-                                           'next_delivery_date': self._convert_to_UTC(cr, uid, delivery_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT), context=context),
-                                           'next_purchase_date': self._convert_to_UTC(cr, uid, purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT), context=context),
+                                           'next_delivery_date': self._convert_to_UTC(cr, uid, delivery_date, context=context).strftime(DEFAULT_SERVER_DATETIME_FORMAT),
+                                           'next_purchase_date': self._convert_to_UTC(cr, uid, purchase_date, context=context).strftime(DEFAULT_SERVER_DATETIME_FORMAT),
                                            'name': procurement.name}, context=context)
                     self.write(cr, uid, [procurement.id], {'group_id': group}, context=context)
 
@@ -107,6 +107,7 @@ class procurement_order(osv.osv):
                 found_date = delivery_date
                 if orderpoint.purchase_calendar_id:
                     while not purchase_date:
+                        found_date = found_date + relativedelta(days=-1) # won't allow to deliver within the day
                         res = calendar_obj._schedule_days(cr, uid, orderpoint.purchase_calendar_id.id, -1, found_date, compute_leaves=True, context=context)
                         for re in res:
                             group = re[2] and att_obj.browse(cr, uid, re[2], context=context).group_id.id or False
