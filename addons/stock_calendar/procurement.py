@@ -6,6 +6,7 @@ from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FO
 from openerp import SUPERUSER_ID
 from psycopg2 import OperationalError
 import pytz
+from profilehooks import profile
 
 class procurement_group(osv.osv):
     _inherit = 'procurement.group'
@@ -29,6 +30,20 @@ class purchase_order(osv.osv):
 
 class procurement_order(osv.osv):
     _inherit = 'procurement.order'
+
+
+    # TODO: Check those autocommit things
+    def run(self, cr, uid, ids, autocommit=False, context=None):
+        procs = self.browse(cr, uid, ids, context=context)
+        to_assign = [x for x in procs if x.state not in ('running', 'done')]
+        for assign in to_assign:
+            self._assign(cr, uid, assign, context=context)
+        buy_ids = [x.id for x in procs if x.rule_id and x.rule_id.action == 'buy']
+        if buy_ids:
+            self.make_po(cr, uid, buy_ids, context=context)
+            self.write(cr, uid, buy_ids, {'state': 'running'}, context=context)
+        set_others = set(ids) - set(buy_ids)
+        return super(procurement_order, self).run(cr, uid, list(set_others), context=context)
 
     def assign_group_date(self, cr, uid, ids, context=None):
         orderpoint_obj = self.pool.get("stock.warehouse.orderpoint")
@@ -83,7 +98,7 @@ class procurement_order(osv.osv):
             'warehouse_id': orderpoint.warehouse_id.id,
             'orderpoint_id': orderpoint.id,
             'group_id': group or orderpoint.group_id.id,
-        }
+            }
 
 
     def _get_previous_dates(self, cr, uid, orderpoint, start_date = False, context=None):
@@ -170,8 +185,8 @@ class procurement_order(osv.osv):
         ctx = context.copy()
         ctx.update({'location': order_point.location_id.id})
         return product_obj._product_available(cr, uid,
-                [order_point.product_id.id],
-                context=ctx)[order_point.product_id.id]['virtual_available']
+                                              [order_point.product_id.id],
+                                              context=ctx)[order_point.product_id.id]['virtual_available']
 
     def _convert_to_tz(self, cr, uid, date, context=None):
         if not context or not context.get('tz'):
@@ -242,8 +257,8 @@ class procurement_order(osv.osv):
         product_obj = self.pool.get('product.product')
         prev_ids = []
         while orderpoint_ids:
-            ids = orderpoint_ids[:100]
-            del orderpoint_ids[:100]
+            ids = orderpoint_ids[:1000]
+            del orderpoint_ids[:1000]
             dates_dict = {}
             product_dict = {}
             ops_dict = {}
@@ -267,6 +282,7 @@ class procurement_order(osv.osv):
                 else:
                     product_dict[key] += [op.product_id]
                     ops_dict[key] += [op]
+            tot_procs = []
             for key in product_dict.keys():
                 for res_group in dates_dict[key]:
                     ctx = context.copy()
@@ -274,7 +290,7 @@ class procurement_order(osv.osv):
                     if res_group[2]:
                         ctx.update({'to_date': res_group[2].strftime(DEFAULT_SERVER_DATETIME_FORMAT)})
                     prod_qty = product_obj._product_available(cr, uid, [x.id for x in product_dict[key]],
-                    context=ctx)
+                                                              context=ctx)
                     group = res_group[0]
                     date = res_group[1]
                     for op in ops_dict[key]:
@@ -282,26 +298,26 @@ class procurement_order(osv.osv):
                             prods = prod_qty[op.product_id.id]['virtual_available']
                             if prods is None:
                                 continue
-                            if prods < op.product_min_qty:
+                            if prods <= op.product_min_qty:
                                 qty = max(op.product_min_qty, op.product_max_qty) - prods
                                 reste = op.qty_multiple > 0 and qty % op.qty_multiple or 0.0
                                 if reste > 0:
                                     qty += op.qty_multiple - reste
 
-                                if qty <= 0:
+                                if qty < 0:
                                     continue
 
                                 qty -= orderpoint_obj.subtract_procurements(cr, uid, op, context=context)
 
-                                if qty > 0:
+                                if qty >= 0:
                                     ndelivery = self._convert_to_UTC(cr, uid, date, context=context)
                                     proc_id = procurement_obj.create(cr, uid,
                                                                      self._prepare_orderpoint_procurement(cr, uid, op, qty, date=ndelivery, group=group, context=context),
                                                                      context=context)
+                                    tot_procs.append(proc_id)
                                     if group and date and res_group[3]:
                                         npurchase = self._convert_to_UTC(cr, uid, res_group[3], context=context)
                                         self.pool.get("procurement.group").write(cr, uid, [group], {'next_purchase_date': npurchase, 'next_delivery_date': ndelivery}, context=context)
-                                    self.run(cr, uid, [proc_id], context=context)
                                     orderpoint_obj.write(cr, uid, [op.id], {'last_execution_date': datetime.utcnow().strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
                                 if use_new_cursor:
                                     cr.commit()
@@ -312,6 +328,8 @@ class procurement_order(osv.osv):
                                 continue
                             else:
                                 raise
+            self.run(cr, uid, tot_procs, context=context)
+
             if use_new_cursor:
                 cr.commit()
             if prev_ids == ids:
@@ -324,85 +342,214 @@ class procurement_order(osv.osv):
             cr.close()
         return {}
 
-    def make_po(self, cr, uid, ids, context=None):
-        """ Resolve the purchase from procurement, which may result in a new PO creation, a new PO line creation or a quantity change on existing PO line.
-        Note that some operations (as the PO creation) are made as SUPERUSER because the current user may not have rights to do it (mto product launched by a sale for example)
 
-        @return: dictionary giving for each procurement its related resolving PO line.
-        """
+    #@profile(immediate=True)
+    def _get_po_line_values_from_procs(self, cr, uid, procurements, partner, schedule_date, context=None):
+        res = {}
+        if context is None:
+            context = {}
+        uom_obj = self.pool.get('product.uom')
+        pricelist_obj = self.pool.get('product.pricelist')
+        prod_obj = self.pool.get('product.product')
+        acc_pos_obj = self.pool.get('account.fiscal.position')
+
+
+        pricelist_id = partner.property_product_pricelist_purchase.id
+        prices_qty = []
+        for procurement in procurements:
+            seller_qty = procurement.product_id.seller_qty
+            uom_id = procurement.product_id.uom_po_id.id
+            qty = uom_obj._compute_qty(cr, uid, procurement.product_uom.id, procurement.product_qty, uom_id)
+            if seller_qty:
+                qty = max(qty, seller_qty)
+            prices_qty += [(procurement.product_id, qty, partner)]
+        prices = pricelist_obj.price_get_multi(cr, uid, [pricelist_id], prices_qty)
+
+        #Passing partner_id to context for purchase order line integrity of Line name
+        new_context = context.copy()
+        new_context.update({'lang': partner.lang, 'partner_id': partner.id})
+        names = prod_obj.name_get(cr, uid, [x.product_id.id for x in procurements], context=context)
+        names_dict = {}
+        for id, name in names:
+            names_dict[id] = name
+        for procurement in procurements:
+            taxes_ids = procurement.product_id.supplier_taxes_id
+            taxes = acc_pos_obj.map_tax(cr, uid, partner.property_account_position, taxes_ids)
+            name = names_dict[procurement.product_id.id]
+            if procurement.product_id.description_purchase:
+                name += '\n' + procurement.product_id.description_purchase
+            price = prices[procurement.product_id.id][pricelist_id]
+
+            values = {
+                'name': name,
+                'product_qty': qty,
+                'product_id': procurement.product_id.id,
+                'product_uom': uom_id,
+                'price_unit': price or 0.0,
+                'date_planned': schedule_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
+                'taxes_id': [(6, 0, taxes)],
+                'procurement_ids': [(4, procurement.id)]
+                }
+            res[procurement.id] = values
+        return res
+
+
+
+    def make_po(self, cr, uid, ids, context=None):
         res = {}
         company = self.pool.get('res.users').browse(cr, uid, uid, context=context).company_id
         po_obj = self.pool.get('purchase.order')
         po_line_obj = self.pool.get('purchase.order.line')
         seq_obj = self.pool.get('ir.sequence')
+        uom_obj = self.pool.get('product.uom')
         pass_ids = []
         linked_po_ids = []
         sum_po_line_ids = []
-        for procurement in self.browse(cr, uid, ids, context=context):
-            partner = self._get_product_supplier(cr, uid, procurement, context=context)
-            if not partner:
-                self.message_post(cr, uid, [procurement.id], _('There is no supplier associated to product %s') % (procurement.product_id.name))
-                res[procurement.id] = False
-            else:
-                if procurement.group_id and procurement.group_id.next_delivery_date:
-                    next_deliv_date = procurement.group_id.next_delivery_date
-                    schedule_date = datetime.strptime(next_deliv_date, DEFAULT_SERVER_DATETIME_FORMAT)
-                else:
-                    schedule_date = self._get_purchase_schedule_date(cr, uid, procurement, company, context=context)
-                if procurement.group_id and procurement.group_id.next_purchase_date:
-                    purchase_date = datetime.strptime(procurement.group_id.next_purchase_date, DEFAULT_SERVER_DATETIME_FORMAT)
-                else:
-                    purchase_date = self._get_purchase_order_date(cr, uid, procurement, company, schedule_date, context=context)
-                line_vals = self._get_po_line_values_from_proc(cr, uid, procurement, partner, company, schedule_date, context=context)
-                dom = [
-                    ('partner_id', '=', partner.id), ('state', '=', 'draft'), ('picking_type_id', '=', procurement.rule_id.picking_type_id.id),
-                    ('location_id', '=', procurement.location_id.id), ('company_id', '=', procurement.company_id.id), ('dest_address_id', '=', procurement.partner_dest_id.id)]
-                if procurement.group_id and procurement.group_id.propagate_to_purchase:
-                    dom += [('group_id', '=', procurement.group_id.id)]
-                #look for any other draft PO for the same supplier, to attach the new line on instead of creating a new draft one
-                available_draft_po_ids = po_obj.search(cr, uid, dom, context=context)
-                if available_draft_po_ids:
-                    po_id = available_draft_po_ids[0]
-                    po_rec = po_obj.browse(cr, uid, po_id, context=context)
-                    #if the product has to be ordered earlier those in the existing PO, we replace the purchase date on the order to avoid ordering it too late
-                    if datetime.strptime(po_rec.date_order, DEFAULT_SERVER_DATETIME_FORMAT) > purchase_date:
-                        po_obj.write(cr, uid, [po_id], {'date_order': purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
-                    #look for any other PO line in the selected PO with same product and UoM to sum quantities instead of creating a new po line
-                    available_po_line_ids = po_line_obj.search(cr, uid, [('order_id', '=', po_id), ('product_id', '=', line_vals['product_id']), ('product_uom', '=', line_vals['product_uom'])], context=context)
-                    if available_po_line_ids:
-                        po_line = po_line_obj.browse(cr, uid, available_po_line_ids[0], context=context)
-                        po_line_obj.write(cr, SUPERUSER_ID, po_line.id, {'product_qty': po_line.product_qty + line_vals['product_qty']}, context=context)
-                        po_line_id = po_line.id
-                        sum_po_line_ids.append(procurement.id)
+        # Regroup POs
+        cr.execute("""
+            SELECT psi.name, p.id, pr.id, pr.picking_type_id, p.location_id, p.partner_dest_id, p.company_id, p.group_id,
+            pg.propagate_to_purchase, psi.qty
+             FROM procurement_order AS p
+                LEFT JOIN procurement_rule AS pr ON pr.id = p.rule_id
+                LEFT JOIN procurement_group AS pg ON p.group_id = pg.id,
+            product_supplierinfo AS psi, product_product AS pp
+            WHERE
+             p.product_id = pp.id AND p.id in %s AND psi.product_tmpl_id = pp.product_tmpl_id
+             ORDER BY psi.sequence,
+                psi.name, p.rule_id, p.location_id, p.company_id, p.partner_dest_id, p.group_id
+        """, (tuple(ids), ))
+        res = cr.fetchall()
+        proc_seller = {}
+        seller_dict = {}
+        old = False
+        # A giant dict for grouping lines, ... to do at once
+        create_purchase_procs = {}
+        add_purchase_procs = {}
+        for partner, proc, rule, pick_type, location, partner_dest, company, group, propagate_to_purchase, qty in res:
+            if not proc_seller.get(proc):
+                new = partner, rule, pick_type, location, company, group, propagate_to_purchase
+                if new != old:
+                    old = new
+                    available_draft_po = False
+                    dom = [
+                        ('partner_id', '=', partner), ('state', '=', 'draft'), ('picking_type_id', '=', pick_type),
+                        ('location_id', '=', location), ('company_id', '=', company), ('dest_address_id', '=', partner_dest)]
+                    if group and propagate_to_purchase:
+                        dom += [('group_id', '=', group)]
+                    available_draft_po_ids = po_obj.search(cr, uid, dom, context=context)
+                    available_draft_po = available_draft_po_ids and available_draft_po_ids[0] or False
+                # Add to dictionary
+                if available_draft_po:
+                    if add_purchase_procs.get(available_draft_po):
+                        add_purchase_procs[available_draft_po] += [proc]
                     else:
-                        line_vals.update(order_id=po_id)
-                        po_line_id = po_line_obj.create(cr, SUPERUSER_ID, line_vals, context=context)
-                        linked_po_ids.append(procurement.id)
+                        add_purchase_procs[available_draft_po] = [proc]
                 else:
-                    name = seq_obj.get(cr, uid, 'purchase.order') or _('PO: %s') % procurement.name
-                    po_vals = {
-                        'name': name,
-                        'origin': procurement.origin,
-                        'partner_id': partner.id,
-                        'location_id': procurement.location_id.id,
-                        'picking_type_id': procurement.rule_id.picking_type_id.id,
-                        'pricelist_id': partner.property_product_pricelist_purchase.id,
-                        'date_order': purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
-                        'company_id': procurement.company_id.id,
-                        'fiscal_position': partner.property_account_position and partner.property_account_position.id or False,
-                        'payment_term_id': partner.property_supplier_payment_term.id or False,
-                        'dest_address_id': procurement.partner_dest_id.id,
-                        'group_id': (procurement.group_id and procurement.group_id.propagate_to_purchase and procurement.group_id.id) or False,
-                    }
-                    po_id = self.create_procurement_purchase_order(cr, SUPERUSER_ID, procurement, po_vals, line_vals, context=context)
-                    po_line_id = po_obj.browse(cr, uid, po_id, context=context).order_line[0].id
-                    pass_ids.append(procurement.id)
-                res[procurement.id] = po_line_id
-                self.write(cr, uid, [procurement.id], {'purchase_line_id': po_line_id}, context=context)
-        if pass_ids:
-            self.message_post(cr, uid, pass_ids, body=_("Draft Purchase Order created"), context=context)
-        if linked_po_ids:
-            self.message_post(cr, uid, linked_po_ids, body=_("Purchase line created and linked to an existing Purchase Order"), context=context)
-        if sum_po_line_ids:
-            self.message_post(cr, uid, sum_po_line_ids, body=_("Quantity added in existing Purchase Order Line"), context=context)
-        return res
+                    if create_purchase_procs.get(new):
+                        create_purchase_procs[new] += [proc]
+                    else:
+                        create_purchase_procs[new] = [proc]
+                proc_seller[proc] = partner
+                if seller_dict.get(partner):
+                    seller_dict[partner] += [proc]
+                else:
+                    seller_dict[partner] = [proc]
+
+        # Let us check existing purchase orders and add lines to them
+        for add_purchase in add_purchase_procs.keys():
+            po = po_obj.browse(cr, uid, add_purchase, context=context)
+            lines_to_update = {}
+            line_values = []
+            procurements = self.browse(cr, uid, add_purchase_procs[add_purchase], context=context)
+            po_line_ids = po_line_obj.search(cr, uid, [('order_id', '=', add_purchase), ('product_id', 'in', [x.product_id.id for x in procurements])], context=context)
+            po_lines = po_line_obj.browse(cr, uid, po_line_ids, context=context)
+            po_prod_dict = {}
+            for po in po_lines:
+                po_prod_dict[po.product_id.id] = po
+            procs_to_create = []
+            for proc in procurements:
+                if po_prod_dict.get(proc.product_id.id):
+                    po_line = po_prod_dict[proc.product_id.id]
+                    uom_id = proc.product_id.uom_po_id.id
+                    qty = uom_obj._compute_qty(cr, uid, proc.product_uom.id, proc.product_qty, uom_id)
+                    if lines_to_update.get(po_line):
+                        lines_to_update[po_line] += [(proc.id, qty)]
+                    else:
+                        lines_to_update[po_line] = [(proc.id, qty)]
+                else:
+                    procs_to_create.append(proc)
+            procs = []
+            for line in lines_to_update.keys():
+                tot_qty = 0
+                for proc, qty in lines_to_update[line]:
+                    tot_qty += qty
+                    procs += [proc]
+                line_values += [(1, line.id, {'product_qty': line.product_qty + tot_qty})] #Could put procurement_ids in here
+                self.write(cr, uid, [x[0] for x in lines_to_update[line]], {'purchase_line_id': line.id})
+            #if procs:
+            #    print procs
+            #    self.message_post(cr, uid, procs, body=_("Quantity added in existing Purchase Order Line"), context=context)
+            print 'Procs', procs
+            print len(line_values)
+
+            #TODO with other lines
+            if procs_to_create:
+                partner = po.partner_id
+                schedule_date = po.minimum_planned_date
+                value_lines = self._get_po_line_values_from_procs(cr, uid, procs_to_create, partner, schedule_date, context=context)
+                line_values += [(0, 0, value_lines[x]) for x in value_lines.keys()]
+                self.message_post(cr, uid, [x.id for x in procs_to_create], body=_("Purchase line created and linked to an existing Purchase Order"), context=context)
+            print len(line_values)
+            po_obj.write(cr, uid, [add_purchase], {'order_line': line_values},context=context)
+
+
+        # Create new purchase orders
+        partner_obj = self.pool.get("res.partner")
+        new_pos = []
+        procs = []
+        for create_purchase in create_purchase_procs.keys():
+            line_values = []
+            procs += create_purchase_procs[create_purchase]
+            procurements = self.browse(cr, uid, create_purchase_procs[create_purchase], context=context)
+            partner = partner_obj.browse(cr, uid, create_purchase[0], context=context)
+
+            #Create purchase order itself:
+            procurement = procurements[0]
+            if procurement.group_id and procurement.group_id.propagate_to_purchase:
+                next_deliv_date = procurement.group_id.next_delivery_date
+                schedule_date = datetime.strptime(next_deliv_date, DEFAULT_SERVER_DATETIME_FORMAT)
+            else:
+                schedule_date = self._get_purchase_schedule_date(cr, uid, procurement, procurement.company_id, context=context)
+
+            if procurement.group_id and procurement.group_id.next_purchase_date:
+                purchase_date = datetime.strptime(procurement.group_id.next_purchase_date, DEFAULT_SERVER_DATETIME_FORMAT)
+            else:
+                purchase_date = self._get_purchase_order_date(cr, uid, procurement, procurement.company_id, schedule_date, context=context)
+
+            value_lines = self._get_po_line_values_from_procs(cr, uid, procurements, partner, schedule_date, context=context)
+            line_values += [(0, 0, value_lines[x]) for x in value_lines.keys()]
+            name = seq_obj.get(cr, uid, 'purchase.order') or _('PO: %s') % procurement.name
+            po_vals = {
+                'name': name,
+                'origin': procurement.origin,
+                'partner_id': create_purchase[0],
+                'location_id': procurement.location_id.id,
+                'picking_type_id': procurement.rule_id.picking_type_id.id,
+                'pricelist_id': partner.property_product_pricelist_purchase.id,
+                'date_order': purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
+                'company_id': procurement.company_id.id,
+                'fiscal_position': partner.property_account_position and partner.property_account_position.id or False,
+                'payment_term_id': partner.property_supplier_payment_term.id or False,
+                'dest_address_id': procurement.partner_dest_id.id,
+                'group_id': (procurement.group_id and procurement.group_id.propagate_to_purchase and procurement.group_id.id) or False,
+                'order_line': line_values,
+                }
+            new_po = po_obj.create(cr, uid, po_vals, context=context)
+            new_pos.append(new_po)
+            print 'New po', len(line_values)
+        print 'PROCS TO DO', procs
+#        if procs:
+#            self.message_post(cr, uid, procs, body=_("Draft Purchase Order created"), context=context)
+        return dict.fromkeys(ids, True)
+
+
