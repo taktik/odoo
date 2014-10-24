@@ -296,6 +296,7 @@ class procurement_order(osv.osv):
                                                               context=ctx)
                     group = res_group[0]
                     date = res_group[1]
+                    subtract_qty = orderpoint_obj.subtract_procurements_from_orderpoints(cr, uid, [x.id for x in ops_dict[key]], context=context)
                     for op in ops_dict[key]:
                         try:
                             prods = prod_qty[op.product_id.id]['virtual_available']
@@ -310,7 +311,7 @@ class procurement_order(osv.osv):
                                 if qty < 0:
                                     continue
 
-                                qty -= orderpoint_obj.subtract_procurements(cr, uid, op, context=context)
+                                qty -= subtract_qty[op.id]
 
                                 if qty >= 0:
                                     ndelivery = self._convert_to_UTC(cr, uid, date, context=context)
@@ -492,12 +493,10 @@ class procurement_order(osv.osv):
                     tot_qty += qty
                     procs += [proc]
                 line_values += [(1, line.id, {'product_qty': line.product_qty + tot_qty})] #Could put procurement_ids in here
-                self.write(cr, uid, [x[0] for x in lines_to_update[line]], {'purchase_line_id': line.id}, context={'tracking_d'})
+                self.write(cr, uid, [x[0] for x in lines_to_update[line]], {'purchase_line_id': line.id}, context=context)
             #if procs:
             #    print procs
             #    self.message_post(cr, uid, procs, body=_("Quantity added in existing Purchase Order Line"), context=context)
-            print 'Procs', procs
-            print len(line_values)
 
             #TODO with other lines
             if procs_to_create:
@@ -508,7 +507,6 @@ class procurement_order(osv.osv):
                 self.message_post(cr, uid, [x.id for x in procs_to_create], body=_("Purchase line created and linked to an existing Purchase Order"), context=context)
             print len(line_values)
             po_obj.write(cr, uid, [add_purchase], {'order_line': line_values},context=context)
-
 
         # Create new purchase orders
         partner_obj = self.pool.get("res.partner")
@@ -553,10 +551,46 @@ class procurement_order(osv.osv):
                 }
             new_po = po_obj.create(cr, uid, po_vals, context=context)
             new_pos.append(new_po)
-            print 'New po', len(line_values)
-        print 'PROCS TO DO', procs
 #        if procs:
 #            self.message_post(cr, uid, procs, body=_("Draft Purchase Order created"), context=context)
         return dict.fromkeys(ids, True)
 
 
+
+class stock_warehouse_orderpoint(osv.osv):
+    """
+    Defines Minimum stock rules.
+    """
+    _inherit = "stock.warehouse.orderpoint"
+
+    def subtract_procurements_from_orderpoints(self, cr, uid, orderpoint_ids, context=None):
+        '''This function returns quantity of product that needs to be deducted from the orderpoint computed quantity because there's already a procurement created with aim to fulfill it.
+        '''
+
+        cr.execute("""select op.id, p.id, p.product_uom, p.product_qty, pt.uom_id, sm.product_qty from procurement_order as p left join stock_move as sm ON sm.procurement_id = p.id,
+                                    stock_warehouse_orderpoint op, product_product pp, product_template pt
+                                WHERE p.orderpoint_id = op.id AND p.state not in ('done', 'cancel') AND sm.state not in ('draft')
+                                AND pp.id = p.product_id AND pp.product_tmpl_id = pt.id
+                                AND op.id IN %s
+                                ORDER BY op.id, p.id
+                    """, (tuple(orderpoint_ids),))
+        results = cr.fetchall()
+        current_proc = False
+        current_op = False
+        uom_obj = self.pool.get("product.uom")
+        op_qty = 0
+        res = dict.fromkeys(orderpoint_ids, 0.0)
+        for move_result in results:
+            op = move_result[0]
+            if current_op != op:
+                if current_op:
+                    res[current_op] = op_qty
+                current_op = op
+                op_qty = 0
+            proc = move_result[1]
+            if proc != current_proc:
+                op_qty += uom_obj._compute_qty(cr, uid, move_result[2], move_result[3], move_result[4], round=False)
+                current_proc = proc
+            if move_result[5]: #If a move is associated (is move qty)
+                op_qty -= move_result[5]
+        return res
