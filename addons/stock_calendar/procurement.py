@@ -41,7 +41,7 @@ class procurement_order(osv.osv):
         buy_ids = [x.id for x in procs if x.rule_id and x.rule_id.action == 'buy']
         if buy_ids:
             self.make_po(cr, uid, buy_ids, context=context)
-            self.write(cr, uid, buy_ids, {'state': 'running'}, context=context)
+            self.write(cr, uid, buy_ids, {'state': 'running'}, context={'tracking_disable': True})
         set_others = set(ids) - set(buy_ids)
         return super(procurement_order, self).run(cr, uid, list(set_others), context=context)
 
@@ -238,6 +238,7 @@ class procurement_order(osv.osv):
             return [(now_date, None)]
         return res_intervals
 
+    @profile(immediate=True)
     def _procure_orderpoint_confirm(self, cr, uid, use_new_cursor=False, company_id=False, context=None):
         '''
         Create procurement based on Orderpoint
@@ -283,6 +284,8 @@ class procurement_order(osv.osv):
                     product_dict[key] += [op.product_id]
                     ops_dict[key] += [op]
             tot_procs = []
+            ctx_chat = context.copy()
+            ctx_chat.update({'mail_create_nolog': True, 'tracking_disable': True, 'mail_create_nosubscribe': True})
             for key in product_dict.keys():
                 for res_group in dates_dict[key]:
                     ctx = context.copy()
@@ -313,7 +316,7 @@ class procurement_order(osv.osv):
                                     ndelivery = self._convert_to_UTC(cr, uid, date, context=context)
                                     proc_id = procurement_obj.create(cr, uid,
                                                                      self._prepare_orderpoint_procurement(cr, uid, op, qty, date=ndelivery, group=group, context=context),
-                                                                     context=context)
+                                                                     context=ctx_chat)
                                     tot_procs.append(proc_id)
                                     if group and date and res_group[3]:
                                         npurchase = self._convert_to_UTC(cr, uid, res_group[3], context=context)
@@ -394,17 +397,16 @@ class procurement_order(osv.osv):
         return res
 
 
-
-    def make_po(self, cr, uid, ids, context=None):
-        res = {}
-        company = self.pool.get('res.users').browse(cr, uid, uid, context=context).company_id
+    def _get_grouping_dicts(self, cr, uid, ids, context=None):
+        """
+        It will group the procurements according to the pos they should go into.  That way, lines going to the same
+        po, can be processed at once.
+        Returns two dictionaries:
+        add_purchase_dicts: key: po value: procs to add to the po
+        create_purchase_dicts: key: values for proc to create (not that necessary as they are in procurement => TODO),
+                                values: procs to add
+        """
         po_obj = self.pool.get('purchase.order')
-        po_line_obj = self.pool.get('purchase.order.line')
-        seq_obj = self.pool.get('ir.sequence')
-        uom_obj = self.pool.get('product.uom')
-        pass_ids = []
-        linked_po_ids = []
-        sum_po_line_ids = []
         # Regroup POs
         cr.execute("""
             SELECT psi.name, p.id, pr.id, pr.picking_type_id, p.location_id, p.partner_dest_id, p.company_id, p.group_id,
@@ -419,14 +421,14 @@ class procurement_order(osv.osv):
                 psi.name, p.rule_id, p.location_id, p.company_id, p.partner_dest_id, p.group_id
         """, (tuple(ids), ))
         res = cr.fetchall()
-        proc_seller = {}
-        seller_dict = {}
         old = False
         # A giant dict for grouping lines, ... to do at once
         create_purchase_procs = {}
         add_purchase_procs = {}
+        proc_seller = {}
         for partner, proc, rule, pick_type, location, partner_dest, company, group, propagate_to_purchase, qty in res:
             if not proc_seller.get(proc):
+                proc_seller[proc] = partner
                 new = partner, rule, pick_type, location, company, group, propagate_to_purchase
                 if new != old:
                     old = new
@@ -449,11 +451,16 @@ class procurement_order(osv.osv):
                         create_purchase_procs[new] += [proc]
                     else:
                         create_purchase_procs[new] = [proc]
-                proc_seller[proc] = partner
-                if seller_dict.get(partner):
-                    seller_dict[partner] += [proc]
-                else:
-                    seller_dict[partner] = [proc]
+        return add_purchase_procs, create_purchase_procs
+
+    def make_po(self, cr, uid, ids, context=None):
+        res = {}
+        company = self.pool.get('res.users').browse(cr, uid, uid, context=context).company_id
+        po_obj = self.pool.get('purchase.order')
+        po_line_obj = self.pool.get('purchase.order.line')
+        seq_obj = self.pool.get('ir.sequence')
+        uom_obj = self.pool.get('product.uom')
+        add_purchase_procs, create_purchase_procs = self._get_grouping_dicts(cr, uid, ids, context=context)
 
         # Let us check existing purchase orders and add lines to them
         for add_purchase in add_purchase_procs.keys():
@@ -485,7 +492,7 @@ class procurement_order(osv.osv):
                     tot_qty += qty
                     procs += [proc]
                 line_values += [(1, line.id, {'product_qty': line.product_qty + tot_qty})] #Could put procurement_ids in here
-                self.write(cr, uid, [x[0] for x in lines_to_update[line]], {'purchase_line_id': line.id})
+                self.write(cr, uid, [x[0] for x in lines_to_update[line]], {'purchase_line_id': line.id}, context={'tracking_d'})
             #if procs:
             #    print procs
             #    self.message_post(cr, uid, procs, body=_("Quantity added in existing Purchase Order Line"), context=context)
