@@ -283,6 +283,7 @@ class procurement_order(osv.osv):
                 else:
                     product_dict[key] += [op.product_id]
                     ops_dict[key] += [op]
+
             tot_procs = []
             ctx_chat = context.copy()
             ctx_chat.update({'mail_create_nolog': True, 'tracking_disable': True, 'mail_create_nosubscribe': True})
@@ -357,7 +358,6 @@ class procurement_order(osv.osv):
         prod_obj = self.pool.get('product.product')
         acc_pos_obj = self.pool.get('account.fiscal.position')
 
-
         pricelist_id = partner.property_product_pricelist_purchase.id
         prices_qty = []
         for procurement in procurements:
@@ -388,7 +388,7 @@ class procurement_order(osv.osv):
                 'name': name,
                 'product_qty': qty,
                 'product_id': procurement.product_id.id,
-                'product_uom': uom_id,
+                'product_uom': procurement.product_id.uom_po_id.id,
                 'price_unit': price or 0.0,
                 'date_planned': schedule_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
                 'taxes_id': [(6, 0, taxes)],
@@ -424,9 +424,9 @@ class procurement_order(osv.osv):
         res = cr.fetchall()
         old = False
         # A giant dict for grouping lines, ... to do at once
-        create_purchase_procs = {}
-        add_purchase_procs = {}
-        proc_seller = {}
+        create_purchase_procs = {} # Lines to add to a newly to create po
+        add_purchase_procs = {} # Lines to add/adjust in an existing po
+        proc_seller = {} # To check we only process one po
         for partner, proc, rule, pick_type, location, partner_dest, company, group, propagate_to_purchase, qty in res:
             if not proc_seller.get(proc):
                 proc_seller[proc] = partner
@@ -463,7 +463,7 @@ class procurement_order(osv.osv):
         uom_obj = self.pool.get('product.uom')
         add_purchase_procs, create_purchase_procs = self._get_grouping_dicts(cr, uid, ids, context=context)
 
-        # Let us check existing purchase orders and add lines to them
+        # Let us check existing purchase orders and add/adjust lines on them
         for add_purchase in add_purchase_procs.keys():
             po = po_obj.browse(cr, uid, add_purchase, context=context)
             lines_to_update = {}
@@ -475,37 +475,38 @@ class procurement_order(osv.osv):
             for po in po_lines:
                 po_prod_dict[po.product_id.id] = po
             procs_to_create = []
+            #Check which procurements need a new line and which need to be added to an existing one
             for proc in procurements:
                 if po_prod_dict.get(proc.product_id.id):
                     po_line = po_prod_dict[proc.product_id.id]
-                    uom_id = proc.product_id.uom_po_id.id
-                    qty = uom_obj._compute_qty(cr, uid, proc.product_uom.id, proc.product_qty, uom_id)
+                    uom_id = po_line.product_uom #Convert to UoM of existing line
+                    qty = uom_obj._compute_qty_obj(cr, uid, proc.product_uom, proc.product_qty, uom_id)
                     if lines_to_update.get(po_line):
                         lines_to_update[po_line] += [(proc.id, qty)]
                     else:
                         lines_to_update[po_line] = [(proc.id, qty)]
                 else:
                     procs_to_create.append(proc)
+
             procs = []
+            # Update the quantities of the lines that need to
             for line in lines_to_update.keys():
                 tot_qty = 0
                 for proc, qty in lines_to_update[line]:
                     tot_qty += qty
                     procs += [proc]
-                line_values += [(1, line.id, {'product_qty': line.product_qty + tot_qty})] #Could put procurement_ids in here
-                self.write(cr, uid, [x[0] for x in lines_to_update[line]], {'purchase_line_id': line.id}, context=context)
+                line_values += [(1, line.id, {'product_qty': line.product_qty + tot_qty, 'procurement_ids': [(4, x[0]) for x in lines_to_update[line]]})]
             #if procs:
             #    print procs
             #    self.message_post(cr, uid, procs, body=_("Quantity added in existing Purchase Order Line"), context=context)
 
-            #TODO with other lines
+            # Create lines for which no line exists yet
             if procs_to_create:
                 partner = po.partner_id
                 schedule_date = po.minimum_planned_date
                 value_lines = self._get_po_line_values_from_procs(cr, uid, procs_to_create, partner, schedule_date, context=context)
                 line_values += [(0, 0, value_lines[x]) for x in value_lines.keys()]
-                self.message_post(cr, uid, [x.id for x in procs_to_create], body=_("Purchase line created and linked to an existing Purchase Order"), context=context)
-            print len(line_values)
+                # self.message_post(cr, uid, [x.id for x in procs_to_create], body=_("Purchase line created and linked to an existing Purchase Order"), context=context)
             po_obj.write(cr, uid, [add_purchase], {'order_line': line_values},context=context)
 
         # Create new purchase orders
@@ -543,8 +544,8 @@ class procurement_order(osv.osv):
                 'pricelist_id': partner.property_product_pricelist_purchase.id,
                 'date_order': purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT),
                 'company_id': procurement.company_id.id,
-                'fiscal_position': partner.property_account_position and partner.property_account_position.id or False,
-                'payment_term_id': partner.property_supplier_payment_term.id or False,
+                'fiscal_position': partner.property_account_position.id,
+                'payment_term_id': partner.property_supplier_payment_term.id,
                 'dest_address_id': procurement.partner_dest_id.id,
                 'group_id': (procurement.group_id and procurement.group_id.propagate_to_purchase and procurement.group_id.id) or False,
                 'order_line': line_values,
