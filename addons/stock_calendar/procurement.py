@@ -6,7 +6,7 @@ from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FO
 from openerp import SUPERUSER_ID
 from psycopg2 import OperationalError
 import pytz
-from profilehooks import profile
+#from profilehooks import profile
 
 class procurement_group(osv.osv):
     _inherit = 'procurement.group'
@@ -238,7 +238,7 @@ class procurement_order(osv.osv):
             return [(now_date, None)]
         return res_intervals
 
-    @profile(immediate=True)
+    #@profile(immediate=True)
     def _procure_orderpoint_confirm(self, cr, uid, use_new_cursor=False, company_id=False, context=None):
         '''
         Create procurement based on Orderpoint
@@ -248,15 +248,18 @@ class procurement_order(osv.osv):
         '''
         if context is None:
             context = {}
+        ctx_chat = context.copy()
+        ctx_chat.update({'mail_create_nolog': True, 'tracking_disable': True, 'mail_create_nosubscribe': True})
         if use_new_cursor:
             cr = openerp.registry(cr.dbname).cursor()
         orderpoint_obj = self.pool.get('stock.warehouse.orderpoint')
-
         procurement_obj = self.pool.get('procurement.order')
+        product_obj = self.pool.get('product.product')
+
         dom = company_id and [('company_id', '=', company_id)] or []
         orderpoint_ids = orderpoint_obj.search(cr, uid, dom, order="location_id, purchase_calendar_id, calendar_id")
-        product_obj = self.pool.get('product.product')
         prev_ids = []
+        tot_procs = []
         while orderpoint_ids:
             ids = orderpoint_ids[:1000]
             del orderpoint_ids[:1000]
@@ -284,9 +287,6 @@ class procurement_order(osv.osv):
                     product_dict[key] += [op.product_id]
                     ops_dict[key] += [op]
 
-            tot_procs = []
-            ctx_chat = context.copy()
-            ctx_chat.update({'mail_create_nolog': True, 'tracking_disable': True, 'mail_create_nosubscribe': True})
             for key in product_dict.keys():
                 for res_group in dates_dict[key]:
                     ctx = context.copy()
@@ -333,7 +333,18 @@ class procurement_order(osv.osv):
                                 continue
                             else:
                                 raise
-            self.run(cr, uid, tot_procs, context=context)
+            try:
+                self.run(cr, uid, tot_procs, context=context)
+                tot_procs = []
+                if use_new_cursor:
+                    cr.commit()
+            except OperationalError:
+                if use_new_cursor:
+                    cr.rollback()
+                    continue
+                else:
+                    raise
+
 
             if use_new_cursor:
                 cr.commit()
