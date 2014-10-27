@@ -298,6 +298,7 @@ class procurement_order(osv.osv):
                     group = res_group[0]
                     date = res_group[1]
                     subtract_qty = orderpoint_obj.subtract_procurements_from_orderpoints(cr, uid, [x.id for x in ops_dict[key]], context=context)
+                    first_op = True
                     for op in ops_dict[key]:
                         try:
                             prods = prod_qty[op.product_id.id]['virtual_available']
@@ -320,8 +321,9 @@ class procurement_order(osv.osv):
                                                                      self._prepare_orderpoint_procurement(cr, uid, op, qty, date=ndelivery, group=group, context=context),
                                                                      context=ctx_chat)
                                     tot_procs.append(proc_id)
-                                    if group and date and res_group[3]:
+                                    if group and date and res_group[3] and first_op:
                                         npurchase = self._convert_to_UTC(cr, uid, res_group[3], context=context)
+                                        first_op = False
                                         self.pool.get("procurement.group").write(cr, uid, [group], {'next_purchase_date': npurchase, 'next_delivery_date': ndelivery}, context=context)
                                     orderpoint_obj.write(cr, uid, [op.id], {'last_execution_date': datetime.utcnow().strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
                                 if use_new_cursor:
