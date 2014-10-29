@@ -6,7 +6,7 @@ from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FO
 from openerp import SUPERUSER_ID
 from psycopg2 import OperationalError
 import pytz
-#from profilehooks import profile
+from profilehooks import profile
 
 class procurement_group(osv.osv):
     _inherit = 'procurement.group'
@@ -23,6 +23,28 @@ class procurement_group(osv.osv):
 
 class purchase_order(osv.osv):
     _inherit = "purchase.order"
+
+    def _amount_all(self, cr, uid, ids, field_name, arg, context=None):
+        res = {}
+        cur_obj=self.pool.get('res.currency')
+        for order in self.browse(cr, uid, ids, context=context):
+            res[order.id] = {
+                'amount_untaxed': 0.0,
+                'amount_tax': 0.0,
+                'amount_total': 0.0,
+            }
+            val = val1 = 0.0
+            cur = order.pricelist_id.currency_id
+            for line in order.order_line:
+               taxes = self.pool.get('account.tax').compute_all(cr, uid, line.taxes_id, line.price_unit, line.product_qty, line.product_id, order.partner_id)
+               val1 += cur_obj.round(cr, uid, cur, taxes['total']) #Decimal precision?
+               for c in taxes['taxes']:
+                   val += c.get('amount', 0.0)
+
+            res[order.id]['amount_tax']=cur_obj.round(cr, uid, cur, val)
+            res[order.id]['amount_untaxed']=cur_obj.round(cr, uid, cur, val1)
+            res[order.id]['amount_total']=res[order.id]['amount_untaxed'] + res[order.id]['amount_tax']
+        return res
 
     def _set_minimum_planned_date(self, cr, uid, ids, name, value, arg, context=None):
         if not value: return False
@@ -257,6 +279,7 @@ class procurement_order(osv.osv):
         date_planned = start_date + relativedelta(days=orderpoint.product_id.seller_delay)
         return date_planned.strftime(DEFAULT_SERVER_DATE_FORMAT)
 
+
     def _prepare_orderpoint_procurement(self, cr, uid, orderpoint, product_qty, date=False, group=False, context=None):
         return {
             'name': orderpoint.name,
@@ -410,7 +433,7 @@ class procurement_order(osv.osv):
             return [(now_date, None)]
         return res_intervals
 
-    #@profile(immediate=True)
+    @profile(immediate=True)
     def _procure_orderpoint_confirm(self, cr, uid, use_new_cursor=False, company_id=False, context=None):
         '''
         Create procurement based on Orderpoint
