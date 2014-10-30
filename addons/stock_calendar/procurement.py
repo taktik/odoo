@@ -6,7 +6,7 @@ from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FO
 from openerp import SUPERUSER_ID
 from psycopg2 import OperationalError
 import pytz
-from profilehooks import profile
+#from profilehooks import profile
 
 class procurement_group(osv.osv):
     _inherit = 'procurement.group'
@@ -109,7 +109,8 @@ class procurement_order(osv.osv):
                 res[procurement.id] = True
             elif procurement.product_id.type != 'service':
                 todo_procs += [procurement]
-        res_dict=self._find_suitable_rule_multi(cr, uid, todo_procs, context=context)
+
+        res_dict = self._find_suitable_rule_multi(cr, uid, todo_procs, context=context)
         rule_dict = {}
         for proc in res_dict.keys():
             if res_dict[proc]:
@@ -122,9 +123,6 @@ class procurement_order(osv.osv):
         ctx_chat.update({'mail_create_nolog': True, 'tracking_disable': True, 'mail_create_nosubscribe': True})
         for rule in rule_dict.keys():
             self.write(cr, uid, rule_dict[rule], {'rule_id': rule}, context=ctx_chat)
-
-
-
 
     def _get_route_group_dict(self, cr, uid, procurements, context=None):
         """
@@ -234,8 +232,18 @@ class procurement_order(osv.osv):
         self._assign_multi(cr, uid, to_assign, context=context)
         buy_ids = [x.id for x in procs if x.rule_id and x.rule_id.action == 'buy']
         if buy_ids:
-            self.make_po(cr, uid, buy_ids, context=context)
-            self.write(cr, uid, buy_ids, {'state': 'running'}, context={'tracking_disable': True})
+            result_dict = self.make_po(cr, uid, buy_ids, context=context)
+            runnings = []
+            exceptions = []
+            for proc in result_dict.keys():
+                if result_dict[proc]:
+                    runnings += [proc]
+                else:
+                    exceptions += [proc]
+            if runnings:
+                self.write(cr, uid, runnings, {'state': 'running'}, context={'tracking_disable': True})
+            if exceptions:
+                self.write(cr, uid, exceptions, {'state': 'exception'}, context=context)
         set_others = set(ids) - set(buy_ids)
         return super(procurement_order, self).run(cr, uid, list(set_others), context=context)
 
@@ -433,7 +441,7 @@ class procurement_order(osv.osv):
             return [(now_date, None)]
         return res_intervals
 
-    @profile(immediate=True)
+    #@profile(immediate=True)
     def _procure_orderpoint_confirm(self, cr, uid, use_new_cursor=False, company_id=False, context=None):
         '''
         Create procurement based on Orderpoint
@@ -670,9 +678,11 @@ class procurement_order(osv.osv):
         seq_obj = self.pool.get('ir.sequence')
         uom_obj = self.pool.get('product.uom')
         add_purchase_procs, create_purchase_procs = self._get_grouping_dicts(cr, uid, ids, context=context)
+        procs_done = []
 
         # Let us check existing purchase orders and add/adjust lines on them
         for add_purchase in add_purchase_procs.keys():
+            procs_done += add_purchase_procs[add_purchase]
             po = po_obj.browse(cr, uid, add_purchase, context=context)
             lines_to_update = {}
             line_values = []
@@ -722,6 +732,7 @@ class procurement_order(osv.osv):
         new_pos = []
         procs = []
         for create_purchase in create_purchase_procs.keys():
+            procs_done += create_purchase_procs[create_purchase]
             line_values = []
             procs += create_purchase_procs[create_purchase]
             procurements = self.browse(cr, uid, create_purchase_procs[create_purchase], context=context)
@@ -762,7 +773,15 @@ class procurement_order(osv.osv):
             new_pos.append(new_po)
 #        if procs:
 #            self.message_post(cr, uid, procs, body=_("Draft Purchase Order created"), context=context)
-        return dict.fromkeys(ids, True)
+
+        other_proc_ids = list(set(ids) - set(procs_done))
+        res = dict.fromkeys(ids, True)
+        if other_proc_ids:
+            other_procs = self.browse(cr, uid, other_proc_ids, context=context)
+            for procurement in other_procs:
+                res[procurement.id] = False
+                self.message_post(cr, uid, [procurement.id], _('There is no supplier associated to product %s') % (procurement.product_id.name))
+        return res
 
 
 
