@@ -111,6 +111,7 @@ class procurement_order(osv.osv):
     def _assign_multi(self, cr, uid, procurements, context=None):
         res = {}
         todo_procs = []
+        context = context or {}
         for procurement in procurements:
             if procurement.rule_id:
                 res[procurement.id] = True
