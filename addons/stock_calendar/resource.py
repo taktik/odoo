@@ -17,9 +17,46 @@ class resource_calendar(osv.osv):
             res[calend.id] = sched_date and sched_date.strftime(_format) or False
         return res
 
-        _columns = {
+    _columns = {
             'next_day': fields.function(_calculate_next_day, string='Next day it should trigger', type='datetime'),
         }
+
+    def get_leave_intervals(self, cr, uid, id, resource_id=None,
+                            start_datetime=None, end_datetime=None,
+                            context=None):
+        """Get the leaves of the calendar. Leaves can be filtered on the resource,
+        the start datetime or the end datetime.
+
+        :param int resource_id: the id of the resource to take into account when
+                                computing the leaves. If not set, only general
+                                leaves are computed. If set, generic and
+                                specific leaves are computed.
+        :param datetime start_datetime: if provided, do not take into account leaves
+                                        ending before this date.
+        :param datetime end_datetime: if provided, do not take into account leaves
+                                        beginning after this date.
+
+        :return list leaves: list of tuples (start_datetime, end_datetime) of
+                             leave intervals
+        """
+        resource_calendar = self.browse(cr, uid, id, context=context)
+        proc_obj = self.pool.get("procurement.order")
+        leaves = []
+        for leave in resource_calendar.leave_ids:
+            if leave.resource_id and not resource_id == leave.resource_id.id:
+                continue
+            date_from_start = proc_obj._convert_to_tz(cr, uid, leave.date_from, context=context)
+            date_from = datetime.datetime.strptime(date_from_start, DEFAULT_SERVER_DATETIME_FORMAT)
+            if end_datetime and date_from > end_datetime:
+                continue
+
+            date_to = proc_obj._convert_to_tz(cr, uid, leave.date_to, context=context)
+            date_to = datetime.datetime.strptime(date_to, DEFAULT_SERVER_DATETIME_FORMAT)
+            if start_datetime and date_to < start_datetime:
+                continue
+
+            leaves.append((date_from, date_to))
+        return leaves
 
     def interval_remove_leaves(self, interval, leave_intervals):
         """ Utility method that remove leave intervals from a base interval:
