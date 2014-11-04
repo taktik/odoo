@@ -101,6 +101,13 @@ class purchase_order_line(osv.osv):
 class procurement_order(osv.osv):
     _inherit = 'procurement.order'
 
+    _columns = {
+        'next_delivery_date': fields.datetime('Next Delivery Date',
+                                              help="The date of the next delivery for this procurement group, when this group is on the purchase calendar of the orderpoint"),
+        'next_purchase_date': fields.datetime('Next Purchase Date',
+                                              help="The date the next purchase order should be sent to the supplier"),
+        }
+
     def _assign_multi(self, cr, uid, procurements, context=None):
         res = {}
         todo_procs = []
@@ -258,11 +265,8 @@ class procurement_order(osv.osv):
                 date_planned = datetime.strptime(procurement.date_planned, DEFAULT_SERVER_DATETIME_FORMAT)
                 purchase_date, delivery_date = self._get_previous_dates(cr, uid, orderpoint, date_planned, context=context)
                 if purchase_date and delivery_date:
-                    group = group_obj.create(cr, uid, {'propagate_to_purchase': True,
-                                           'next_delivery_date': self._convert_to_UTC(cr, uid, delivery_date, context=context).strftime(DEFAULT_SERVER_DATETIME_FORMAT),
-                                           'next_purchase_date': self._convert_to_UTC(cr, uid, purchase_date, context=context).strftime(DEFAULT_SERVER_DATETIME_FORMAT),
-                                           'name': procurement.name}, context=context)
-                    self.write(cr, uid, [procurement.id], {'group_id': group}, context=context)
+                    self.write(cr, uid, {'next_delivery_date': self._convert_to_UTC(cr, uid, delivery_date, context=context).strftime(DEFAULT_SERVER_DATETIME_FORMAT),
+                                         'next_purchase_date': self._convert_to_UTC(cr, uid, purchase_date, context=context).strftime(DEFAULT_SERVER_DATETIME_FORMAT),}, context=context)
 
     def _get_purchase_order_date(self, cr, uid, procurement, company, schedule_date, context=None):
         """Return the datetime value to use as Order Date (``date_order``) for the
@@ -288,10 +292,12 @@ class procurement_order(osv.osv):
         return date_planned.strftime(DEFAULT_SERVER_DATE_FORMAT)
 
 
-    def _prepare_orderpoint_procurement(self, cr, uid, orderpoint, product_qty, date=False, group=False, context=None):
+    def _prepare_orderpoint_procurement(self, cr, uid, orderpoint, product_qty, date=False, purchase_date = False, group=False, context=None):
         return {
             'name': orderpoint.name,
             'date_planned': date or self._get_orderpoint_date_planned(cr, uid, orderpoint, datetime.today(), context=context),
+            'next_delivery_date': date,
+            'next_purchase_date': purchase_date,
             'product_id': orderpoint.product_id.id,
             'product_qty': product_qty,
             'company_id': orderpoint.company_id.id,
@@ -502,6 +508,8 @@ class procurement_order(osv.osv):
                     date = res_group[1]
                     subtract_qty = orderpoint_obj.subtract_procurements_from_orderpoints(cr, uid, [x.id for x in ops_dict[key]], context=context)
                     first_op = True
+                    ndelivery = date and self._convert_to_UTC(cr, uid, date, context=context) or False
+                    npurchase = res_group[3] and self._convert_to_UTC(cr, uid, res_group[3], context=context) or False
                     for op in ops_dict[key]:
                         try:
                             prods = prod_qty[op.product_id.id]['virtual_available']
@@ -519,15 +527,10 @@ class procurement_order(osv.osv):
                                 qty -= subtract_qty[op.id]
 
                                 if qty >= 0:
-                                    ndelivery = self._convert_to_UTC(cr, uid, date, context=context)
                                     proc_id = procurement_obj.create(cr, uid,
-                                                                     self._prepare_orderpoint_procurement(cr, uid, op, qty, date=ndelivery, group=group, context=context),
+                                                                     self._prepare_orderpoint_procurement(cr, uid, op, qty, date=ndelivery, purchase_date=npurchase, group=group, context=context),
                                                                      context=ctx_chat)
                                     tot_procs.append(proc_id)
-                                    if group and date and res_group[3] and first_op:
-                                        npurchase = self._convert_to_UTC(cr, uid, res_group[3], context=context)
-                                        first_op = False
-                                        self.pool.get("procurement.group").write(cr, uid, [group], {'next_purchase_date': npurchase, 'next_delivery_date': ndelivery}, context=context)
                                     orderpoint_obj.write(cr, uid, [op.id], {'last_execution_date': datetime.utcnow().strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
                                 if use_new_cursor:
                                     cr.commit()
@@ -539,6 +542,7 @@ class procurement_order(osv.osv):
                             else:
                                 raise
             try:
+                tot_procs.reverse()
                 self.run(cr, uid, tot_procs, context=context)
                 tot_procs = []
                 if use_new_cursor:
@@ -549,7 +553,6 @@ class procurement_order(osv.osv):
                     continue
                 else:
                     raise
-
 
             if use_new_cursor:
                 cr.commit()
@@ -727,6 +730,7 @@ class procurement_order(osv.osv):
                 # self.message_post(cr, uid, [x.id for x in procs_to_create], body=_("Purchase line created and linked to an existing Purchase Order"), context=context)
             po_obj.write(cr, uid, [add_purchase], {'order_line': line_values},context=context)
 
+
         # Create new purchase orders
         partner_obj = self.pool.get("res.partner")
         new_pos = []
@@ -740,14 +744,14 @@ class procurement_order(osv.osv):
 
             #Create purchase order itself:
             procurement = procurements[0]
-            if procurement.group_id and procurement.group_id.propagate_to_purchase:
-                next_deliv_date = procurement.group_id.next_delivery_date
+            if procurement.next_delivery_date:
+                next_deliv_date = procurement.next_delivery_date
                 schedule_date = datetime.strptime(next_deliv_date, DEFAULT_SERVER_DATETIME_FORMAT)
             else:
                 schedule_date = self._get_purchase_schedule_date(cr, uid, procurement, procurement.company_id, context=context)
 
-            if procurement.group_id and procurement.group_id.next_purchase_date:
-                purchase_date = datetime.strptime(procurement.group_id.next_purchase_date, DEFAULT_SERVER_DATETIME_FORMAT)
+            if procurement.next_purchase_date:
+                purchase_date = datetime.strptime(procurement.next_purchase_date, DEFAULT_SERVER_DATETIME_FORMAT)
             else:
                 purchase_date = self._get_purchase_order_date(cr, uid, procurement, procurement.company_id, schedule_date, context=context)
 

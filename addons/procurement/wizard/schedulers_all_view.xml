@@ -11,6 +11,7 @@
                 <form string="Scheduler Parameters">
                     <p>
                         Compute all procurements in the background.
+                        <field name="company_id"/>
                     </p>
                     <footer>
                         <button name="procure_calculation" string="Run Schedulers" type="object"  class="oe_highlight"  />

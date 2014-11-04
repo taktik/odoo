@@ -24,7 +24,7 @@ import threading
 from openerp import SUPERUSER_ID
 from openerp import tools
 
-from openerp.osv import osv
+from openerp.osv import osv, fields
 from openerp.api import Environment
 
 _logger = logging.getLogger(__name__)
@@ -33,6 +33,10 @@ class procurement_compute_all(osv.osv_memory):
     _name = 'procurement.order.compute.all'
     _description = 'Compute all schedulers'
 
+
+    _columns = {
+        'company_id': fields.many2one('res.company', 'Company'),
+    }
     def _procure_calculation_all(self, cr, uid, ids, context=None):
         """
         @param self: The object pointer.
@@ -57,9 +61,14 @@ class procurement_compute_all(osv.osv_memory):
                 new_cr.close()
                 return {}
             user = self.pool.get('res.users').browse(new_cr, uid, uid, context=context)
-            comps = [x.id for x in user.company_ids]
-            for comp in comps:
-                proc_obj.run_scheduler(new_cr, uid, use_new_cursor=new_cr.dbname, company_id = comp, context=context)
+            data = self.browse(new_cr, uid, ids[0])
+            if data.company_id:
+                proc_obj.run_scheduler(new_cr, uid, use_new_cursor=new_cr.dbname, company_id = data.company_id.id, context=context)
+            else:
+                comps = [x.id for x in user.company_ids]
+                for comp in comps:
+                    proc_obj.run_scheduler(new_cr, uid, use_new_cursor=new_cr.dbname, company_id = comp, context=context)
+
             #close the new cursor
             new_cr.close()
             return {}
