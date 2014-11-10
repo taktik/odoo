@@ -30,10 +30,6 @@ from openerp.tools.translate import _
 from openerp.api import Environment
 import openerp
 _logger = logging.getLogger(__name__)
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from openerp import SUPERUSER_ID
-from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT
 
 
 class company_lock(osv.Model):
@@ -76,30 +72,6 @@ class procurement_order(osv.Model):
         for company in result_comps:
             self.run_scheduler_lock(cr, uid, company, True, context=context)
         return {}
-
-
-class res_company(osv.Model):
-    _inherit='res.company'
-
-    def generate_cron(self, cr, uid, ids, context=None):
-        nbcronworkers = config.options['max_cron_threads']
-        ir_cron=self.pool.get('ir.cron')
-        # Delete from ir_cron
-        existing_crons = ir_cron.search(cr, uid, [('function', '=', 'run_scheduler_parts')], context=context)
-        if existing_crons:
-            ir_cron.unlink(cr, uid, existing_crons, context=context)
-
-        # Create crons for number of crons
-        for cron in range(nbcronworkers):
-            ir_cron.create(cr, uid, {'name': 'Run scheduler parts:' + str(cron),
-                                     'function': 'run_scheduler_parts',
-                                     'nextcall': (datetime.utcnow() + relativedelta(minutes=1)).strftime(DEFAULT_SERVER_DATETIME_FORMAT),
-                                     'args': '(' + str(cron) + ',)',
-                                     'interval_type': 'days',
-                                     'active': True,
-                                     'numbercall': -1,
-                                     'model': 'procurement.order'}, context=context)
-
 
 
 

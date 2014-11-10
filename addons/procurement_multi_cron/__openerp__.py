@@ -32,6 +32,7 @@ This is a module that will instead of creating a general lock, it will create a 
     """,
     'data': [
         'wizard/schedulers_all_view.xml',
+        'wizard/cron_generate_view.xml',
         'multi_cron_view.xml',
     ],
     'demo': [],
