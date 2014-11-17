@@ -45,13 +45,14 @@ class resource_calendar(osv.osv):
         for leave in resource_calendar.leave_ids:
             if leave.resource_id and not resource_id == leave.resource_id.id:
                 continue
-            date_from_start = proc_obj._convert_to_tz(cr, uid, leave.date_from, context=context)
-            date_from = datetime.datetime.strptime(date_from_start, DEFAULT_SERVER_DATETIME_FORMAT)
+
+            date_from_db = datetime.datetime.strptime(leave.date_from, DEFAULT_SERVER_DATETIME_FORMAT)
+            date_from = proc_obj._convert_to_tz(cr, uid, date_from_db, context=context)
             if end_datetime and date_from > end_datetime:
                 continue
 
-            date_to = proc_obj._convert_to_tz(cr, uid, leave.date_to, context=context)
-            date_to = datetime.datetime.strptime(date_to, DEFAULT_SERVER_DATETIME_FORMAT)
+            date_to_db = datetime.datetime.strptime(leave.date_to, DEFAULT_SERVER_DATETIME_FORMAT)
+            date_to = proc_obj._convert_to_tz(cr, uid, date_to_db, context=context)
             if start_datetime and date_to < start_datetime:
                 continue
 
@@ -277,7 +278,7 @@ class resource_calendar(osv.osv):
 
         # find leave intervals
         if leaves is None and compute_leaves:
-            leaves = self.get_leave_intervals(cr, uid, id, resource_id=resource_id, context=None)
+            leaves = self.get_leave_intervals(cr, uid, id, resource_id=resource_id, context=context)
 
         # filter according to leaves
         for interval in working_intervals:
