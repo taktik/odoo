@@ -45,7 +45,6 @@ class resource_calendar(osv.osv):
         for leave in resource_calendar.leave_ids:
             if leave.resource_id and not resource_id == leave.resource_id.id:
                 continue
-
             date_from_db = datetime.datetime.strptime(leave.date_from, DEFAULT_SERVER_DATETIME_FORMAT)
             date_from = proc_obj._convert_to_tz(cr, uid, date_from_db, context=context)
             if end_datetime and date_from > end_datetime:
