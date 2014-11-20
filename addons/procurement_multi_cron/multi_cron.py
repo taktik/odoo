@@ -60,6 +60,7 @@ class procurement_order(osv.Model):
             return {}
 
         #If we don't have a lock on one of these records:
+        print context
         self.run_scheduler(new_cr, uid, use_new_cursor=True, company_id=company_id, context=context)
         new_cr.close()
         return {}

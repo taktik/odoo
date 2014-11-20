@@ -59,7 +59,7 @@ class cron_generate(osv.osv_memory):
             ir_cron.create(cr, uid, {'name': 'Run scheduler parts:' + str(cron),
                                      'function': 'run_scheduler_parts',
                                      'nextcall': date,
-                                     'args': '(' + str(cron) + ',)',
+                                     'args': '(' + str(cron) + ',' + str(context) + ',)',
                                      'interval_type': 'days',
                                      'active': True,
                                      'numbercall': -1,
