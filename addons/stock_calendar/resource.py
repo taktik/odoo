@@ -1,7 +1,7 @@
 import datetime
 
 from openerp.osv import fields, osv
-from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT
+from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FORMAT
 
 
 class resource_calendar(osv.osv):
@@ -115,11 +115,11 @@ class resource_calendar(osv.osv):
         """
         calendar = self.browse(cr, uid, id, context=None)
         res = [att for att in calendar.attendance_ids if int(att.dayofweek) in weekdays]
-        date = date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
+        date = date.strftime(DEFAULT_SERVER_DATE_FORMAT)
         res = []
         for att in calendar.attendance_ids:
             if int(att.dayofweek) in weekdays:
-                if not ((att.date_from and date < att.date_from) or (att.date_to and date > att.date_to)):
+                if not ((att.date_from and date <= att.date_from) or (att.date_to and date >= att.date_to)):
                     res.append(att)
         return res
 
