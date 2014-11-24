@@ -119,7 +119,7 @@ class resource_calendar(osv.osv):
         res = []
         for att in calendar.attendance_ids:
             if int(att.dayofweek) in weekdays:
-                if not ((att.date_from and date <= att.date_from) or (att.date_to and date >= att.date_to)):
+                if not ((att.date_from and date < att.date_from) or (att.date_to and date > att.date_to)):
                     res.append(att)
         return res
 
