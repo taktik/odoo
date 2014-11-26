@@ -884,5 +884,6 @@ class stock_warehouse_orderpoint(osv.osv):
                 current_proc = proc
             if move_result[5]: #If a move is associated (is move qty)
                 op_qty -= move_result[5]
-        res[current_op] = op_qty
+        if current_op:
+            res[current_op] = op_qty
         return res
