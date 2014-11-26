@@ -860,7 +860,7 @@ class stock_warehouse_orderpoint(osv.osv):
 
         cr.execute("""select op.id, p.id, p.product_uom, p.product_qty, pt.uom_id, sm.product_qty from procurement_order as p left join stock_move as sm ON sm.procurement_id = p.id,
                                     stock_warehouse_orderpoint op, product_product pp, product_template pt
-                                WHERE p.orderpoint_id = op.id AND p.state not in ('done', 'cancel') AND sm.state not in ('draft')
+                                WHERE p.orderpoint_id = op.id AND p.state not in ('done', 'cancel') AND (sm.state IS NULL OR sm.state not in ('draft'))
                                 AND pp.id = p.product_id AND pp.product_tmpl_id = pt.id
                                 AND op.id IN %s
                                 ORDER BY op.id, p.id
@@ -884,4 +884,5 @@ class stock_warehouse_orderpoint(osv.osv):
                 current_proc = proc
             if move_result[5]: #If a move is associated (is move qty)
                 op_qty -= move_result[5]
+        res[current_op] = op_qty
         return res
