@@ -65,7 +65,7 @@
     move_obj = self.pool.get('stock.move')
     import datetime
     from openerp.tools import DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FORMAT
-    today8 = datetime.datetime.today() + datetime.timedelta(days = 8)
+    today8 = datetime.datetime.today() + datetime.timedelta(days = 7)
     today21 = datetime.datetime.today() + datetime.timedelta(days = 21)
     cal1 = self.browse(cr, uid, ref('pick_out_calendar'))
     cal2 = self.browse(cr, uid, ref('pick_out_calendar2'))
