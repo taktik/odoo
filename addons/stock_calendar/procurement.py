@@ -337,7 +337,7 @@ class procurement_order(osv.osv):
            :return: the desired Order Date for the PO
         """
         calendar_obj = self.pool.get('resource.calendar')
-        if procurement.orderpoint_id.purchase_calendar_id:
+        if procurement.orderpoint_id.purchase_calendar_id and procurement.orderpoint_id.purchase_calendar_id.attendance_ids:
             now_date = self._convert_to_tz(cr, uid, datetime.utcnow(), context=context)
             res = calendar_obj._schedule_days(cr, uid, procurement.orderpoint_id.purchase_calendar_id.id, 1, now_date, compute_leaves=True, context=context)
             if res:
@@ -381,13 +381,13 @@ class procurement_order(osv.osv):
         # First check if the orderpoint has a Calendar as it should be delivered at this calendar date
         purchase_date = False
         delivery_date = start_date
-        if orderpoint.calendar_id:
+        if orderpoint.calendar_id and orderpoint.calendar_id.attendance_ids:
             res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, -1, start_date, compute_leaves=True, context=context)
             if res and res[0][0] < start_date:
                 group_to_find = res[0][2] and att_obj.browse(cr, uid, res[0][2], context=context).group_id.id or False
                 delivery_date = res[0][0]
                 found_date = delivery_date
-                if orderpoint.purchase_calendar_id:
+                if orderpoint.purchase_calendar_id and orderpoint.purchase_calendar_id.attendance_ids:
                     while not purchase_date:
                         found_date = found_date + relativedelta(days=-1) # won't allow to deliver within the day
                         res = calendar_obj._schedule_days(cr, uid, orderpoint.purchase_calendar_id.id, -1, found_date, compute_leaves=True, context=context)
@@ -486,7 +486,7 @@ class procurement_order(osv.osv):
         date = False
         now_date = self._convert_to_tz(cr, uid, datetime.utcnow(), context=context)
         res_intervals = []
-        if orderpoint.purchase_calendar_id:
+        if orderpoint.purchase_calendar_id and orderpoint.purchase_calendar_id.attendance_ids:
             if orderpoint.last_execution_date:
                 new_date = datetime.strptime(orderpoint.last_execution_date, DEFAULT_SERVER_DATETIME_FORMAT)
             else:
@@ -542,7 +542,7 @@ class procurement_order(osv.osv):
                 if not dates_dict.get(key):
                     date_groups = self._get_group(cr, uid, op, context=context)
                     for date, group in date_groups:
-                        if op.calendar_id:
+                        if op.calendar_id and op.calendar_id.attendance_ids:
                             date1, date2 = self._get_next_dates(cr, uid, op, date, group, context=context)
                             res_groups += [(group, date1, date2, date)] #date1/date2 as deliveries and date as purchase confirmation date
                         else:
