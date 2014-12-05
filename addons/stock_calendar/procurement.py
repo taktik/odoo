@@ -855,6 +855,8 @@ class procurement_order(osv.osv):
                 self.message_post(cr, uid, [procurement.id], _('There is no supplier associated to product %s') % (procurement.product_id.name))
         return res
 
+
+    #TODO: Does not work in case of MRP
     def propagate_cancels(self, cr, uid, ids, context=None):
         purchase_line_obj = self.pool.get('purchase.order.line')
         lines_to_cancel = []
