@@ -5,6 +5,7 @@ from openerp.tools.translate import _
 from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FORMAT
 from openerp import SUPERUSER_ID
 from psycopg2 import OperationalError
+from openerp.tools import float_compare
 import pytz
 #from profilehooks import profile
 
@@ -154,6 +155,14 @@ class purchase_order_line(osv.osv):
     _columns = {
         'date_planned': fields.datetime('Scheduled Date', required=True, select=True),
     }
+
+    def action_cancel(self, cr, uid, ids, context=None):
+        self.write(cr, uid, ids, {'state': 'cancel'}, context=context)
+        # This can be done differently by using different purchase orders
+        purchase_orders = list(set([x.order_id for x in self.browse(cr, uid, ids, context=context)]))
+        for purchase in purchase_orders:
+            if all([l.state == 'cancel' for l in purchase.order_line]):
+                self.pool.get('purchase.order').action_cancel(cr, uid, [purchase.id], context=context)
 
 class procurement_order(osv.osv):
     _inherit = 'procurement.order'
@@ -846,7 +855,47 @@ class procurement_order(osv.osv):
                 self.message_post(cr, uid, [procurement.id], _('There is no supplier associated to product %s') % (procurement.product_id.name))
         return res
 
+    def propagate_cancels(self, cr, uid, ids, context=None):
+        purchase_line_obj = self.pool.get('purchase.order.line')
+        lines_to_cancel = []
+        move_cancel = []
+        uom_obj = self.pool.get("product.uom")
+        for procurement in self.browse(cr, uid, ids, context=context):
+            if procurement.rule_id.action == 'buy' and procurement.purchase_line_id:
+                uom = procurement.purchase_line_id.product_uom
+                product_qty = uom_obj._compute_qty_obj(cr, uid, procurement.product_uom, procurement.product_qty, uom, context=context)
+                if procurement.purchase_line_id.state not in ('draft', 'cancel'):
+                    raise osv.except_osv(_('Error!'),
+                        _('Can not cancel this procurement like this as the related purchase order has been confirmed already.  Please cancel the purchase order first. '))
+                if float_compare(procurement.purchase_line_id.product_qty, product_qty, 0, precision_rounding=uom.rounding) > 0:
+                    purchase_line_obj.write(cr, uid, [procurement.purchase_line_id.id], {'product_qty': procurement.purchase_line_id.product_qty - product_qty}, context=context)
+                else:
+                    if procurement.purchase_line_id.id not in lines_to_cancel:
+                        lines_to_cancel += [procurement.purchase_line_id.id]
+            #This should be in a different method when merging into master
+            if procurement.rule_id.action == 'move' and procurement.move_ids:
+                move_cancel += [m.id for m in procurement.move_ids]
+        if lines_to_cancel:
+            purchase_line_obj.action_cancel(cr, uid, lines_to_cancel, context=context)
+        if move_cancel:
+            self.pool.get('stock.move').action_cancel(cr, uid, move_cancel, context=context)
 
+    def get_cancel_ids(self, cr, uid, ids, context=None):
+        return [proc.id for proc in self.browse(cr, uid, ids, context=context) if proc.state != 'done']
+
+    def cancel(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        to_cancel_ids = self.get_cancel_ids(cr, uid, ids, context=context)
+        ctx = context.copy()
+        #set the context for the propagation of the procurement cancellation
+        ctx['cancel_procurement'] = True
+        self.propagate_cancels(cr, uid, to_cancel_ids, context=ctx)
+
+        #cancel only the procurements that aren't done already
+        to_cancel_ids = self.get_cancel_ids(cr, uid, ids, context=context)
+        if to_cancel_ids:
+            return self.write(cr, uid, to_cancel_ids, {'state': 'cancel'}, context=context)
 
 class stock_warehouse_orderpoint(osv.osv):
     """
