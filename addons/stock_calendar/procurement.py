@@ -265,7 +265,7 @@ class procurement_order(osv.osv):
                     results_dict[procurement.id] = res[0]
 
 
-        procurements_to_check = [x for x in procurements if x not in results_dict.keys()]
+        procurements_to_check = [x for x in procurements if x.id not in results_dict.keys()]
         #group by warehouse_id:
         wh_dict = self._get_wh_loc_dict(cr, uid, procurements_to_check, context=context)
         for wh in wh_dict.keys():
