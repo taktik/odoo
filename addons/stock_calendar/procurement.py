@@ -422,14 +422,15 @@ class procurement_order(osv.osv):
         res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
         att_group = res and res[0][2] and att_obj.browse(cr, uid, res[0][2], context=context).group_id.id or False
         #If hours are smaller than the current date, search a day further
-        #TODO: maybe there could be stuff at the same day
         if res and res[0][0] < now_date:
             new_date = res[0][1] + relativedelta(days=1)
             res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
-            if res and res[0][2]:
-                att_group = att_obj.browse(cr, uid, res[0][2], context=context).group_id.id
-            else:
+            for re in res:
                 att_group = False
+                if re[2]:
+                    att_group = att_obj.browse(cr, uid, re[2], context=context).group_id.id
+                    if att_group == group:
+                        break
 
         # If you can find an entry and you have a group to match, but it does not, search further until you find one that corresponds
         number = 0
@@ -438,10 +439,11 @@ class procurement_order(osv.osv):
             new_date = res[0][1] + relativedelta(days=1)
             res = calendar_obj._schedule_days(cr, uid, orderpoint.calendar_id.id, 1, new_date, compute_leaves=True, context=context)
             att_group = False
-            if res and res[0][2]:
-                att_group = att_obj.browse(cr, uid, res[0][2], context=context).group_id.id
-            else:
-                att_group = False
+            for re in res:
+                if re[2]:
+                    att_group = att_obj.browse(cr, uid, re[2], context=context).group_id.id
+                    if att_group == group:
+                        break
         #number as safety pall for endless loops
         if number >= 100:
             res = False
