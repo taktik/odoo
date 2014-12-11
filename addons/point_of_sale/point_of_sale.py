@@ -21,6 +21,7 @@
 
 import logging
 import time
+import math
 
 from openerp import tools
 from openerp.osv import fields, osv
@@ -758,11 +759,15 @@ class pos_order(osv.osv):
         """A Point of Sale is paid when the sum
         @return: True
         """
+        try:
+            precision = dp.get_precision('Account')(cr)[1]
+        except Exception as ex:
+            _logger.info('Cannot get accounting precision %s', ex.message)
         for order in self.browse(cr, uid, ids, context=context):
             if order.lines and not order.amount_total:
                 return True
             if (not order.lines) or (not order.statement_ids) or \
-                (abs(order.amount_total-order.amount_paid) > 0.00001):
+                (abs(order.amount_total-order.amount_paid) > math.pow(10, -float(precision))):
                 return False
         return True
 
