@@ -117,7 +117,7 @@ instance.web.ListView = instance.web.View.extend( /** @lends instance.web.ListVi
             this._limit = (this.options.limit
                         || this.defaults.limit
                         || (this.getParent().action || {}).limit
-                        || 80);
+                        || 200);
         }
         return this._limit;
     },

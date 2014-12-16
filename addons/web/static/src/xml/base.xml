@@ -745,7 +745,7 @@
 </t>
 <t t-name="ListView.pager">
     <div class="oe_list_pager" t-att-colspan="widget.columns_count">
-        <t t-if="!widget.no_leaf and widget.options.pager !== false" t-call="ViewPager">
+        <t t-if="!widget.no_leaf" t-call="ViewPager">
             <span class="oe_list_pager_state">
             </span>
         </t>
