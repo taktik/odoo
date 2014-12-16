@@ -6,6 +6,7 @@ from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT, DEFAULT_SERVER_DATE_FO
 from openerp import SUPERUSER_ID
 from psycopg2 import OperationalError
 from openerp.tools import float_compare
+import openerp
 import pytz
 #from profilehooks import profile
 
