@@ -835,7 +835,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
         },
         get_base_price:    function(){
             var rounding = this.pos.currency.rounding;
-            return  round_pr(round_pr(this.get_unit_price() * this.get_quantity(), rounding) * (1 - this.get_discount() / 100.0), rounding);
+            return round_pr(this.get_unit_price() * this.get_quantity() * (1 - this.get_discount()/100), rounding);
         },
         get_display_price: function(){
             return this.get_base_price();
