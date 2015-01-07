@@ -41,7 +41,10 @@ import traceback
 import werkzeug.serving
 import werkzeug.contrib.fixers
 
-from newrelic import agent as newrelic_agent
+try:
+    from newrelic import agent as newrelic_agent
+except Exception:
+    pass
 
 import openerp
 import openerp.tools.config as config
