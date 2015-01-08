@@ -24,6 +24,11 @@ except ImportError:
 import openerp
 import openerp.tools.config as config
 
+try:
+    from newrelic import agent as newrelic_agent
+except Exception:
+    pass
+
 _logger = logging.getLogger(__name__)
 
 class Multicorn(object):
@@ -48,6 +53,10 @@ class Multicorn(object):
         self.workers = {}
         self.generation = 0
         self.queue = []
+        if config.get('newrelic_config_file', False):
+            newrelic_agent.initialize(config.get('newrelic_config_file'), config.get('newrelic_environment', 'production'))
+            _logger.info("Newrelic agent initialized")
+
 
     def pipe_new(self):
         pipe = os.pipe()
