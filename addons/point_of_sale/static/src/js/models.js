@@ -709,10 +709,24 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             }else{
                 var quant = parseFloat(quantity) || 0;
                 var unit = this.get_unit();
+                var uom  = this.get_uom();
+                var fac  = (this.product.uos_coeff || 1.0);
                 if(unit){
                     if (unit.rounding) {
-                        this.quantity    = round_pr(quant, unit.rounding);
-                        this.quantityStr = this.quantity.toFixed(Math.ceil(Math.log(1.0 / unit.rounding) / Math.log(10)));
+                        if(fac > 0 && Math.abs(parseInt(quant) - quant) == 0 && quant % fac != 0) {
+                            this.quantity = quant;
+                        } else {
+                           this.quantity = quant / fac;
+                        }
+                        this.quantity = round_di(this.quantity || 0, this.pos.dp['Product Unit of Measure']);
+                        this.quantityStr = this.quantity.toFixed(this.pos.dp['Product Unit of Measure']);
+                        // If the unit of sale is not the same as the unit of measure, we need to make sure
+                        // that the quantity we sell is a valid measure quantity.
+                        if (unit !== uom) {
+                            this.quantity = this.quantity * fac;
+                            this.quantity = round_di(this.quantity || 0, this.pos.dp['Product UoS']);
+                            this.quantityStr = this.quantity.toFixed(this.pos.dp['Product UoS']);
+                        }
                     } else {
                         this.quantity    = round_pr(quant, 1);
                         this.quantityStr = this.quantity.toFixed(0);
@@ -741,7 +755,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
         },
         // return the unit of measure of the product
         get_unit: function(){
-            var unit_id = this.product.uom_id;
+            var unit_id = this.product.uos_id || this.product.uom_id;
             if(!unit_id){
                 return undefined;
             }
@@ -750,6 +764,9 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
                 return undefined;
             }
             return this.pos.units_by_id[unit_id];
+        },
+        get_uom: function(){
+            return this.pos.units_by_id[this.product.uom_id[0]];
         },
         // return the product of this orderline
         get_product: function(){
@@ -813,12 +830,13 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             this.price = round_di(parseFloat(price) || 0, this.pos.dp['Product Price']);
             this.trigger('change',this);
         },
-        get_unit_price: function(){
-            return this.price;
+        get_unit_price: function () {
+            var uos_fac = this.product.uos_id ? 1.0 / this.product.uos_coeff : 1.0;
+            return round_di(this.price * uos_fac, this.pos.dp['Product Price']);
         },
         get_base_price:    function(){
             var rounding = this.pos.currency.rounding;
-            return round_pr(this.get_unit_price() * this.get_quantity() * (1 - this.get_discount()/100), rounding);
+            return  round_pr(round_pr(this.get_unit_price() * this.get_quantity(), rounding) * (1 - this.get_discount() / 100.0), rounding);
         },
         get_display_price: function(){
             return this.get_base_price();
@@ -1023,6 +1041,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             attr.order = this;
             var line = new module.Orderline({}, {pos: this.pos, order: this, product: product});
 
+            options.quantity = 1;
             if(options.quantity !== undefined){
                 line.set_quantity(options.quantity);
             }
