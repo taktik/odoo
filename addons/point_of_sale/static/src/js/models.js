@@ -661,6 +661,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             this.product = options.product;
             this.price   = options.product.price;
             this.quantity = 1;
+            this.quantity_uom = 1;
             this.quantityStr = '1';
             this.discount = 0;
             this.discountStr = '0';
@@ -707,32 +708,27 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
                 this.order.removeOrderline(this);
                 return;
             }else{
-                var quant = parseFloat(quantity) || 0;
                 var unit = this.get_unit();
                 var uom  = this.get_uom();
                 var fac  = (this.product.uos_coeff || 1.0);
                 if(unit){
                     if (unit.rounding) {
-                        if(fac > 0 && Math.abs(parseInt(quant) - quant) == 0 && quant % fac != 0) {
-                            this.quantity = quant;
-                        } else {
-                           this.quantity = quant / fac;
-                        }
-                        this.quantity = round_di(this.quantity || 0, this.pos.dp['Product Unit of Measure']);
+                        this.quantity = round_di(quantity || 0, this.pos.dp['Product Unit of Measure']);
                         this.quantityStr = this.quantity.toFixed(this.pos.dp['Product Unit of Measure']);
+                        this.quantity_uom = this.quantity;
                         // If the unit of sale is not the same as the unit of measure, we need to make sure
                         // that the quantity we sell is a valid measure quantity.
                         if (unit !== uom) {
-                            this.quantity = this.quantity * fac;
+                            this.quantity = this.quantity_uom * fac;
                             this.quantity = round_di(this.quantity || 0, this.pos.dp['Product UoS']);
                             this.quantityStr = this.quantity.toFixed(this.pos.dp['Product UoS']);
                         }
                     } else {
-                        this.quantity    = round_pr(quant, 1);
+                        this.quantity    = round_pr(quantity, 1);
                         this.quantityStr = this.quantity.toFixed(0);
                     }
                 }else{
-                    this.quantity    = quant;
+                    this.quantity    = quantity;
                     this.quantityStr = '' + this.quantity;
                 }
             }
@@ -741,6 +737,9 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
         // return the quantity of product
         get_quantity: function(){
             return this.quantity;
+        },
+        get_quantity_uom: function(){
+            return this.quantity_uom;
         },
         get_quantity_str: function(){
             return this.quantityStr;
@@ -799,7 +798,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             }
         },
         merge: function(orderline){
-            this.set_quantity(this.get_quantity() + orderline.get_quantity());
+            this.set_quantity(this.get_quantity_uom() + orderline.get_quantity_uom());
         },
         export_as_JSON: function() {
             return {
