@@ -171,6 +171,7 @@ setup(
     tests_require=[
         'unittest2',
         'mock',
+        'unittest-xml-reporting',
     ],
     **py2exe_options()
 )
