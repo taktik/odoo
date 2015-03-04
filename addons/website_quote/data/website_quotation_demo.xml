@@ -3,7 +3,7 @@
     <data>
         <record id="product_template_quote_1" model="product.template">
             <field name="name">Functional Training</field>
-            <field name="categ_id" ref="product.product_category_5"/>
+            <field name="categ_id" ref="product.product_category_3"/>
             <field name="standard_price">50000.0</field>
             <field name="list_price">750000.0</field>
             <field name="type">service</field>
@@ -19,7 +19,7 @@
 
         <record id="product_template_quote_2" model="product.template">
             <field name="name">Technical Training</field>
-            <field name="categ_id" ref="product.product_category_5"/>
+            <field name="categ_id" ref="product.product_category_3"/>
             <field name="standard_price">50000.0</field>
             <field name="list_price">0.0</field>
             <field name="type">service</field>
@@ -35,7 +35,7 @@
 
         <record id="product_template_quote_3" model="product.template">
             <field name="name">Advanced CRM Functional</field>
-            <field name="categ_id" ref="product.product_category_5"/>
+            <field name="categ_id" ref="product.product_category_3"/>
             <field name="standard_price">50000.0</field>
             <field name="list_price">750000.0</field>
             <field name="type">service</field>
@@ -275,7 +275,7 @@
                             <h2>Structure of the Training</h2>
                         </div>
                         <div class="col-md-5 col-md-offset-1 mt16 mb16">
-                            <img class="img img-responsive" src="https://www.odoo.com/saas_master/static/site_new/img/layout/online_training.png"/>
+                            <img class="img img-responsive" src="/website_quote/static/src/img/online_training.png"/>
                         </div>
                         <div class="col-md-6 mt32">
                             <h4><strong>There are three components to the training</strong></h4>
