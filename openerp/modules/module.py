@@ -555,6 +555,7 @@ def run_unit_tests(module_name):
     Return None if no test was found.
     """
     import unittest2
+    import xmlrunner
     ms = get_test_modules(module_name, '__fast_suite__', explode=False)
     # TODO: No need to try again if the above call failed because of e.g. a syntax error.
     ms.extend(get_test_modules(module_name, '__sanity_checks__', explode=False))
@@ -578,7 +579,8 @@ def run_unit_tests(module_name):
                         c = '` ' + c
                     first = False
                     _logger.log(logging.TEST, c)
-        result = unittest2.TextTestRunner(verbosity=2, stream=MyStream()).run(suite)
+        runner = xmlrunner.XMLTestRunner(output="../../test_reports/xml/", verbosity=2, stream=tools.MyStream())
+        result = runner.run(suite)
         if result.wasSuccessful():
             return True
         else:
