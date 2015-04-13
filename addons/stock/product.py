@@ -186,7 +186,7 @@ class product_product(osv.osv):
                 operator = '=='
 
             ids = []
-            if name == 'qty_available':
+            if name == 'qty_available' and (value != 0.0 or operator not in  ('==', '>=', '<=')):
                 res.append(('id', 'in', self._search_qty_available(cr, uid, operator, value, context)))
             else:
                 product_ids = self.search(cr, uid, [], context=context)
@@ -327,6 +327,18 @@ class product_product(osv.osv):
         templ_ids = list(set([x.product_tmpl_id.id for x in self.browse(cr, uid, ids, context=context)]))
         return template_obj.action_view_routes(cr, uid, templ_ids, context=context)
 
+    def onchange_track_all(self, cr, uid, ids, track_all, context=None):
+        if not track_all:
+            return {}
+        unassigned_quants = self.pool['stock.quant'].search_count(cr, uid, [('product_id','in', ids), ('lot_id','=', False), ('location_id.usage','=', 'internal')], context=context)
+        if unassigned_quants:
+            return {'warning' : {
+                    'title': _('Warning!'),
+                    'message' : _("Lots are not defined for all the existing inventory of this product. You should assign serial numbers (e.g. by creating an inventory) first.")
+            }}
+        return {}
+
+
 class product_template(osv.osv):
     _name = 'product.template'
     _inherit = 'product.template'
@@ -435,6 +447,12 @@ class product_template(osv.osv):
         result['domain'] = "[('id','in',[" + ','.join(map(str, route_ids)) + "])]"
         return result
 
+    def onchange_track_all(self, cr, uid, ids, track_all, context=None):
+        if not track_all:
+            return {}
+        product_product = self.pool['product.product']
+        variant_ids = product_product.search(cr, uid, [('product_tmpl_id', 'in', ids)], context=context)
+        return product_product.onchange_track_all(cr, uid, variant_ids, track_all, context=context)
 
     def _get_products(self, cr, uid, ids, context=None):
         products = []
@@ -481,20 +499,14 @@ class product_template(osv.osv):
         return result
 
     def write(self, cr, uid, ids, vals, context=None):
-        check = ids and 'uom_po_id' in vals
-        if check:
-            cr.execute("SELECT id, uom_po_id FROM product_template WHERE id IN %s", [tuple(ids)])
-            uoms = dict(cr.fetchall())
-
-        result = super(product_template, self).write(cr, uid, ids, vals, context=context)
-
-        if check:
-            cr.execute("SELECT id, uom_po_id FROM product_template WHERE id IN %s", [tuple(ids)])
-            if dict(cr.fetchall()) != uoms:
-                product_ids = self.pool['product.product'].search(cr, uid, [('product_tmpl_id', 'in', ids)], context=context)
-                if self.pool['stock.move'].search_count(cr, uid, [('product_id', 'in', product_ids)], context=context):
-                    raise UserError(_("You can not change the unit of measure of a product that has already been used in a stock move. If you need to change the unit of measure, you may deactivate this product."))
-        return result
+        if 'uom_id' in vals:
+            new_uom = self.pool.get('product.uom').browse(cr, uid, vals['uom_id'], context=context)
+            for product in self.browse(cr, uid, ids, context=context):
+                old_uom = product.uom_id
+                if old_uom != new_uom:
+                    if self.pool.get('stock.move').search(cr, uid, [('product_id', 'in', [x.id for x in product.product_variant_ids]), ('state', '=', 'done')], limit=1, context=context):
+                        raise UserError(_("You can not change the unit of measure of a product that has already been used in a done stock move. If you need to change the unit of measure, you may deactivate this product."))
+        return super(product_template, self).write(cr, uid, ids, vals, context=context)
 
 
 class product_removal_strategy(osv.osv):

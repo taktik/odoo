@@ -63,6 +63,12 @@ def raise_qweb_exception(etype=None, **kw):
         e.qweb['cause'] = original
         raise
 
+def _build_attribute(name, value):
+    value = escape(value)
+    if isinstance(name, unicode): name = name.encode('utf-8')
+    if isinstance(value, unicode): value = value.encode('utf-8')
+    return ' %s="%s"' % (name, value)
+
 class FileSystemLoader(object):
     def __init__(self, path):
         # TODO: support multiple files #add_file() + add cache
@@ -244,8 +250,10 @@ class QWeb(orm.AbstractModel):
         stack.append(id_or_xml_id)
         qwebcontext['__stack__'] = stack
         qwebcontext['xmlid'] = str(stack[0]) # Temporary fix
-        return self.render_node(self.get_template(id_or_xml_id, qwebcontext), qwebcontext,
-            generated_attributes=qwebcontext.pop('generated_attributes', ''))
+
+        element = self.get_template(id_or_xml_id, qwebcontext)
+        element.attrib.pop("name", False)
+        return self.render_node(element, qwebcontext, generated_attributes=qwebcontext.pop('generated_attributes', ''))
 
     def render_node(self, element, qwebcontext, generated_attributes=''):
         t_render = None
@@ -276,8 +284,6 @@ class QWeb(orm.AbstractModel):
                             self, element, attribute_name, attribute_value, qwebcontext)
                         for att, val in attrs:
                             if not val: continue
-                            if not isinstance(val, str):
-                                val = unicode(val).encode('utf-8')
                             generated_attributes += self.render_attribute(element, att, val, qwebcontext)
                         break
                 else:
@@ -340,7 +346,7 @@ class QWeb(orm.AbstractModel):
             return "<%s%s/>" % (name, generated_attributes)
 
     def render_attribute(self, element, name, value, qwebcontext):
-        return ' %s="%s"' % (name, escape(value))
+        return _build_attribute(name, value)
 
     def render_text(self, text, element, qwebcontext):
         return text.encode('utf-8')
@@ -634,7 +640,7 @@ class FieldConverter(osv.AbstractModel):
         if inherit_branding:
             # add branding attributes
             g_att += ''.join(
-                ' %s="%s"' % (name, escape(value))
+                _build_attribute(name, value)
                 for name, value in self.attributes(
                     cr, uid, field_name, record, options,
                     source_element, g_att, t_att, qweb_context)
@@ -815,7 +821,9 @@ class ImageConverter(osv.AbstractModel):
 
 class MonetaryConverter(osv.AbstractModel):
     """ ``monetary`` converter, has a mandatory option
-    ``display_currency``.
+    ``display_currency`` only if field is not of type Monetary.
+    Otherwise, if we are in presence of a monetary field, the field definition must
+    have a currency_field attribute set.
 
     The currency is used for formatting *and rounding* of the float value. It
     is assumed that the linked res_currency has a non-empty rounding value and
@@ -839,19 +847,21 @@ class MonetaryConverter(osv.AbstractModel):
         if context is None:
             context = {}
         Currency = self.pool['res.currency']
-        display_currency = self.display_currency(cr, uid, options['display_currency'], options)
+        cur_field = record._fields[field_name]
+        display_currency = False
+        #currency should be specified by monetary field
+        if cur_field.type == 'monetary' and cur_field.currency_field:
+            display_currency = record[cur_field.currency_field]
+        #otherwise fall back to old method
+        if not display_currency:
+            display_currency = self.display_currency(cr, uid, options['display_currency'], options)
 
         # lang.format mandates a sprintf-style format. These formats are non-
         # minimal (they have a default fixed precision instead), and
         # lang.format will not set one by default. currency.round will not
         # provide one either. So we need to generate a precision value
         # (integer > 0) from the currency's rounding (a float generally < 1.0).
-        #
-        # The log10 of the rounding should be the number of digits involved if
-        # negative, if positive clamp to 0 digits and call it a day.
-        # nb: int() ~ floor(), we want nearest rounding instead
-        precision = int(math.floor(math.log10(display_currency.rounding)))
-        fmt = "%.{0}f".format(-precision if precision < 0 else 0)
+        fmt = "%.{0}f".format(display_currency.decimal_places)
 
         from_amount = record[field_name]
 

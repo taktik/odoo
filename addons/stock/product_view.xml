@@ -132,7 +132,7 @@
                 </group>
                 <group name="status" position="before">
                     <group name="lot" groups="stock.group_production_lot" string="Lots" attrs="{'invisible':[('type','=','service')]}">
-                        <field name="track_all" groups="stock.group_production_lot"/>
+                        <field name="track_all" groups="stock.group_production_lot" on_change="onchange_track_all(track_all)"/>
                         <field name="track_incoming" groups="stock.group_production_lot" attrs="{'invisible': [('track_all', '=', True)]}"/>
                         <field name="track_outgoing" groups="stock.group_production_lot" attrs="{'invisible': [('track_all', '=', True)]}"/>
                     </group>
@@ -147,11 +147,13 @@
                 <field name="product_manager" position="attributes">
                     <attribute name="context">{'default_groups_ref': ['base.group_user', 'base.group_sale_manager', 'stock.group_stock_manager']}</attribute>
                 </field>
-                <group name="procurement" position="after" >
-                   <group string="Supply Chain Information" attrs="{'invisible': [('type', '=', 'service')]}" groups="base.group_user">
-                       <field name="route_ids" widget="many2many_checkboxes"/>
-                   </group>
-                </group>
+                <page name="procurements" position="after">
+                    <page string="Supply Chain" groups="base.group_user" attrs="{'invisible': [('type', '=', 'service')]}">
+                        <group>
+                            <field name="route_ids" widget="many2many_checkboxes"/>
+                        </group>
+                    </page>
+                </page>
             </field>
         </record>
 

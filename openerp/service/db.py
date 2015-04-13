@@ -174,12 +174,6 @@ def dump_db(db_name, stream, backup_format='zip'):
     _logger.info('DUMP DB: %s format %s', db_name, backup_format)
 
     cmd = ['pg_dump', '--no-owner']
-    if openerp.tools.config['db_user']:
-        cmd.append('--username=' + openerp.tools.config['db_user'])
-    if openerp.tools.config['db_host']:
-        cmd.append('--host=' + openerp.tools.config['db_host'])
-    if openerp.tools.config['db_port']:
-        cmd.append('--port=' + str(openerp.tools.config['db_port']))
     cmd.append(db_name)
 
     if backup_format == 'zip':
@@ -195,10 +189,10 @@ def dump_db(db_name, stream, backup_format='zip'):
             cmd.insert(-1, '--file=' + os.path.join(dump_dir, 'dump.sql'))
             openerp.tools.exec_pg_command(*cmd)
             if stream:
-                openerp.tools.osutil.zip_dir(dump_dir, stream, include_dir=False)
+                openerp.tools.osutil.zip_dir(dump_dir, stream, include_dir=False, fnct_sort=lambda file_name: file_name != 'dump.sql')
             else:
                 t=tempfile.TemporaryFile()
-                openerp.tools.osutil.zip_dir(dump_dir, t, include_dir=False)
+                openerp.tools.osutil.zip_dir(dump_dir, t, include_dir=False, fnct_sort=lambda file_name: file_name != 'dump.sql')
                 t.seek(0)
                 return t
     else:
@@ -248,12 +242,6 @@ def restore_db(db, dump_file, copy=False):
             pg_args = ['--no-owner', dump_file]
 
         args = []
-        if openerp.tools.config['db_user']:
-            args.append('--username=' + openerp.tools.config['db_user'])
-        if openerp.tools.config['db_host']:
-            args.append('--host=' + openerp.tools.config['db_host'])
-        if openerp.tools.config['db_port']:
-            args.append('--port=' + str(openerp.tools.config['db_port']))
         args.append('--dbname=' + db)
         pg_args = args + pg_args
 
