@@ -534,7 +534,7 @@
     <li class="oe_fields"><a href="#" data-action="get_view_fields">View Fields</a></li>
     <li class="oe_fvg"><a href="#" data-action="fvg">Fields View Get</a></li>
     <li class="oe_filters"><a href="#" data-action="manage_filters">Manage Filters</a></li>
-    <t t-if="uid === 1">
+    <t t-if="is_admin">
         <li class="oe_translate"><a href="#" data-action="translate">Technical Translation</a></li>
         <li class="oe_edit_view"><a href="#" data-action="edit" data-model="ir.ui.view" t-att-data-id="active_view.controller.fields_view.view_id">Edit <t t-esc="_.str.capitalize(view.fields_view.type)"/> View</a></li>
         <li class="oe_edit_searchview" t-if="searchview"><a href="#" data-action="edit" data-model="ir.ui.view" t-att-data-id="searchview.view_id">Edit SearchView</a></li> 
@@ -1276,10 +1276,6 @@
         </t>
     </span>
 </t>
-<t t-name="Many2OneButton">
-    <span class="oe_form_field">
-    </span>
-</t>
 <t t-name="Many2OneButton.cell"
     ><img t-attf-src="#{prefix}/web/static/src/img/icons/#{widget.icon}.png" t-att-alt="widget.string" width="16" height="16"/>
 </t>
@@ -1596,7 +1592,7 @@
     </t>
 </t>
 <t t-name="One2Many.listview" t-extend="ListView">
-    <t t-jquery="thead.ui-widget-header > tr:first">
+    <t t-jquery="thead > tr:first">
         this.removeAttr('t-if');
     </t>
 
@@ -1936,10 +1932,10 @@
 <t t-name="FieldMany2ManyCheckBoxes">
     <t t-foreach="widget.get('records')" t-as="record">
         <div>
-            <t t-if="selected[record[0]]">
+            <t t-if="widget.get('value').indexOf(record[0]) !== -1">
                 <input type="checkbox" t-att-data-record-id="JSON.stringify(record[0])" checked="true"/>
             </t>
-            <t t-if="! selected[record[0]]">
+            <t t-if="widget.get('value').indexOf(record[0]) === -1">
                 <input type="checkbox" t-att-data-record-id="JSON.stringify(record[0])"/>
             </t>
             <t t-esc="record[1]"/>
