@@ -2670,6 +2670,13 @@ class stock_inventory(osv.osv):
         @return: True
         """
         for inv in self.browse(cr, uid, ids, context=context):
+            self.write(cr, uid, [inv.id], {
+                'line_ids': [(5,)],
+                'partner_id': False,
+                'product_id': False,
+                'lot_id': False,
+                'package_id': False,
+            }, context=context)
             self.pool.get('stock.move').action_cancel(cr, uid, [x.id for x in inv.move_ids], context=context)
             self.write(cr, uid, [inv.id], {'state': 'draft'}, context=context)
         return True
