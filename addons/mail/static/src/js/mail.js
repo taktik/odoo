@@ -369,6 +369,16 @@ openerp.mail = function (session) {
             this.is_log = false;
             this.recipients = [];
             this.recipient_ids = [];
+            session.web.bus.on('clear_uncommitted_changes', this, function(e) {
+                if (this.show_composer && !e.isDefaultPrevented()){
+                    if (!confirm(_t("You are currently composing a message, your message will be discarded.\n\nAre you sure you want to leave this page ?"))) {
+                        e.preventDefault();
+                    }
+                    else{
+                        this.on_cancel();
+                    }
+                }
+            });
         },
 
         start: function () {
@@ -531,7 +541,9 @@ openerp.mail = function (session) {
                     context: context,
                 };
 
-                self.do_action(action);
+                self.do_action(action, {
+                    'on_close': function(){ self.is_log && self.parent_thread.message_fetch() }
+                });
                 self.on_cancel();
             });
 
@@ -652,8 +664,8 @@ openerp.mail = function (session) {
             if (self.flag_post) {
                 return;
             }
-            self.flag_post = true;
             if (this.do_check_attachment_upload() && (this.attachment_ids.length || this.$('textarea').val().match(/\S+/))) {
+                self.flag_post = true;
                 if (this.is_log) {
                     this.do_send_message_post([], this.is_log);
                 }
@@ -790,7 +802,8 @@ openerp.mail = function (session) {
 
             _.each(messages, function (thread) {
                 if (thread.author_id && !thread.author_id[0] &&
-                    !_.find(self.recipients, function (recipient) {return recipient.email_address == thread.author_id[3];})) {
+                    !_.find(self.recipients, function (recipient) {return recipient.email_address == thread.author_id[3];}) &&
+                    _.some([thread.author_id[1], thread.author_id[2], thread.author_id[3]])) {
                     self.recipients.push({  'full_name': thread.author_id[1],
                                             'name': thread.author_id[2],
                                             'email_address': thread.author_id[3],
@@ -880,7 +893,11 @@ openerp.mail = function (session) {
             self.parent_thread.message_fetch(this.domain, this.context, false, function (arg, data) {
                 self.id = false;
                 // insert the message on dom after this message
-                self.parent_thread.switch_new_message(data, self.$el);
+                var element = self.$el;
+                if (self.thread_level === 0){
+                    element = element.parent();
+                }
+                self.parent_thread.switch_new_message(data, element);
                 self.animated_destroy(200);
             });
 
@@ -1801,10 +1818,9 @@ openerp.mail = function (session) {
                 this.$('oe_mail_thread').hide();
                 return;
             }
-
             this.node.params = _.extend(this.node.params, {
                 'message_ids': this.get_value(),
-                'show_compose_message': this.view.is_action_enabled('edit'),
+                'show_compose_message': true,
             });
             this.node.context = {
                 'mail_read_set_read': true,  // set messages as read in Chatter
