@@ -322,18 +322,49 @@ $.extend( proto, {
     }
 });
 
+/**
+ * Private function that triggers an event on core.bus
+ * @param {htmlString or Element or Array or jQuery} [content] the content that
+ * has been attached in the DOM
+ */
+function _notify (content) {
+    core.bus.trigger('DOM_updated', content);
+}
+/**
+ * Appends content in a jQuery object and optionnally triggers an event
+ * @param {jQuery} [$target] the node where content will be appended
+ * @param {htmlString or Element or Array or jQuery} [content] DOM element,
+ * array of elements, HTML string or jQuery object to append to $target
+ * @param {jQuery} [trigger] true to trigger an event, false otherwise
+ */
+function append ($target, content, trigger) {
+    $target.append(content);
+    if (trigger) {
+        _notify(content);
+    }
+}
+/**
+ * Prepends content in a jQuery object and optionnally triggers an event
+ * @param {jQuery} [$target] the node where content will be prepended
+ * @param {htmlString or Element or Array or jQuery} [content] DOM element,
+ * array of elements, HTML string or jQuery object to prepend to $target
+ * @param {jQuery} [trigger] true to trigger an event, false otherwise
+ */
+function prepend ($target, content, trigger) {
+    $target.prepend(content);
+    if (trigger) {
+        _notify(content);
+    }
+}
+
 return {
     blockUI: blockUI,
     unblockUI: unblockUI,
     redirect: redirect,
+    append: append,
+    prepend: prepend,
 };
 
-});
-
-odoo.define('web.session', function (require) {
-    var Session = require('web.Session');
-    var modules = odoo._modules;
-    return new Session(undefined, undefined, {modules:modules});
 });
 
 odoo.define('web.IFrameWidget', function (require) {

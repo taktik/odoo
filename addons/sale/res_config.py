@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Business Applications
-#    Copyright (C) 2004-2012 OpenERP S.A. (<http://openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
 
@@ -34,13 +16,13 @@ class sale_configuration(osv.TransientModel):
         'timesheet': fields.boolean('Prepare invoices based on timesheets',
             help='For modifying account analytic view to show important data to project manager of services companies.'
                  'You can also view the report of account analytic summary user-wise as well as month wise.\n'
-                 '-This installs the module account_analytic_analysis.'),
-        'module_account_analytic_analysis': fields.boolean('Use contracts management',
+                 '-This installs the module sale_contract.'),
+        'module_sale_contract': fields.boolean('Use contracts management',
             help='Allows to define your customer contracts conditions: invoicing '
                  'method (fixed price, on timesheet, advance invoice), the exact pricing '
                  '(650€/day for a developer), the duration (one year support contract).\n'
                  'You will be able to follow the progress of the contract and invoice automatically.\n'
-                 '-It installs the account_analytic_analysis module.'),
+                 '-It installs the sale_contract module.'),
         'group_sale_pricelist':fields.boolean("Use pricelists to adapt your price per customers",
             implied_group='product.group_sale_pricelist',
             help="""Allows to manage different prices based on rules per category of customers.
@@ -57,7 +39,7 @@ Example: 10% for retailers, promotion of 5 EUR on this product, etc."""),
         'module_warning': fields.boolean("Allow configuring alerts by customer or products",
             help='Allow to configure notification on products and trigger them when a user wants to sell a given product or a given customer.\n'
                  'Example: Product: this product is deprecated, do not purchase more than 5.\n'
-                 'Supplier: don\'t forget to ask for an express delivery.'),
+                 'Vendor: don\'t forget to ask for an express delivery.'),
         'module_sale_margin': fields.boolean("Display margins on sales orders",
             help='This adds the \'Margin\' on sales order.\n'
                  'This gives the profitability by calculating the difference between the Unit Price and Cost Price.\n'
@@ -97,21 +79,13 @@ Example: 10% for retailers, promotion of 5 EUR on this product, etc."""),
     def onchange_timesheet(self, cr, uid, ids, timesheet, context=None):
         return {'value': {
             'timesheet': timesheet,
-            'module_account_analytic_analysis': timesheet,
+            'module_sale_contract': timesheet,
         }}
 
 class account_config_settings(osv.osv_memory):
     _inherit = 'account.config.settings'
     _columns = {
-        'module_sale_analytic_plans': fields.boolean('Use multiple analytic accounts on sales',
-            help="""This allows install module sale_analytic_plans."""),
         'group_analytic_account_for_sales': fields.boolean('Analytic accounting for sales',
             implied_group='sale.group_analytic_accounting',
             help="Allows you to specify an analytic account on sales orders."),
     }
-
-    def onchange_sale_analytic_plans(self, cr, uid, ids, module_sale_analytic_plans, context=None):
-        """ change group_analytic_account_for_sales following module_sale_analytic_plans """
-        if not module_sale_analytic_plans:
-            return {}
-        return {'value': {'group_analytic_account_for_sales': module_sale_analytic_plans}}

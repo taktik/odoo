@@ -1,29 +1,12 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2010 Tiny SPRL (<http://tiny.be>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
 import time
 from openerp.osv import fields,osv
 from openerp.tools.translate import _
 import openerp.addons.decimal_precision as dp
+from openerp.tools.safe_eval import safe_eval as eval
 from openerp.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -32,20 +15,6 @@ class delivery_carrier(osv.osv):
     _name = "delivery.carrier"
     _description = "Carrier"
     _order = 'sequence, id'
-
-    def name_get(self, cr, uid, ids, context=None):
-        if not len(ids):
-            return []
-        if context is None:
-            context = {}
-        order_id = context.get('order_id',False)
-        if not order_id:
-            res = super(delivery_carrier, self).name_get(cr, uid, ids, context=context)
-        else:
-            order = self.pool.get('sale.order').browse(cr, uid, order_id, context=context)
-            currency = order.pricelist_id.currency_id.name or ''
-            res = [(r['id'], r['name']+' ('+(str(r['price']))+' '+currency+')') for r in self.read(cr, uid, ids, ['name', 'price'], context)]
-        return res
 
     def get_price(self, cr, uid, ids, field_name, arg=None, context=None):
         res={}
@@ -129,12 +98,11 @@ class delivery_carrier(osv.osv):
 
             # not using advanced pricing per destination: override grid
             grid_id = grid_pool.search(cr, uid, [('carrier_id', '=', record.id)], context=context)
-            if grid_id and not (record.normal_price or record.free_if_more_than):
+            if grid_id and not (record.normal_price is not False or record.free_if_more_than):
                 grid_pool.unlink(cr, uid, grid_id, context=context)
                 grid_id = None
 
-            # Check that float, else 0.0 is False
-            if not (isinstance(record.normal_price,float) or record.free_if_more_than):
+            if not (record.normal_price is not False or record.free_if_more_than):
                 continue
 
             if not grid_id:
@@ -158,10 +126,10 @@ class delivery_carrier(osv.osv):
                     'operator': '>=',
                     'max_value': record.amount,
                     'standard_price': 0.0,
-                    'list_price': 0.0,
+                    'list_base_price': 0.0,
                 }
                 grid_line_pool.create(cr, uid, line_data, context=context)
-            if isinstance(record.normal_price,float):
+            if record.normal_price is not False:
                 line_data = {
                     'grid_id': grid_id and grid_id[0],
                     'name': _('Default price'),
@@ -169,7 +137,7 @@ class delivery_carrier(osv.osv):
                     'operator': '>=',
                     'max_value': 0.0,
                     'standard_price': record.normal_price,
-                    'list_price': record.normal_price,
+                    'list_base_price': record.normal_price,
                 }
                 grid_line_pool.create(cr, uid, line_data, context=context)
         return True
@@ -215,6 +183,8 @@ class delivery_grid(osv.osv):
         total_delivery = 0.0
         product_uom_obj = self.pool.get('product.uom')
         for line in order.order_line:
+            if line.state == 'cancel':
+                continue
             if line.is_delivery:
                 total_delivery += line.price_subtotal + self.pool['sale.order']._amount_line_tax(cr, uid, line, context=context)
             if not line.product_id or line.is_delivery:
@@ -235,17 +205,13 @@ class delivery_grid(osv.osv):
         for line in grid.line_ids:
             test = eval(line.type+line.operator+str(line.max_value), price_dict)
             if test:
-                if line.price_type=='variable':
-                    price = line.list_price * price_dict[line.variable_factor]
-                else:
-                    price = line.list_price
+                price = line.list_base_price + line.list_price * price_dict[line.variable_factor]
                 ok = True
                 break
         if not ok:
             raise UserError(_("Selected product in the delivery method doesn't fulfill any of the delivery grid(s) criteria."))
 
         return price
-
 
 
 class delivery_grid_line(osv.osv):
@@ -260,16 +226,19 @@ class delivery_grid_line(osv.osv):
                                   'Variable', required=True),
         'operator': fields.selection([('==','='),('<=','<='),('<','<'),('>=','>='),('>','>')], 'Operator', required=True),
         'max_value': fields.float('Maximum Value', required=True),
-        'price_type': fields.selection([('fixed','Fixed'),('variable','Variable')], 'Price Type', required=True),
         'variable_factor': fields.selection([('weight','Weight'),('volume','Volume'),('wv','Weight * Volume'), ('price','Price'), ('quantity','Quantity')], 'Variable Factor', required=True),
+        'list_base_price': fields.float('Sale Base Price', digits_compute=dp.get_precision('Product Price'), required=True),
         'list_price': fields.float('Sale Price', digits_compute= dp.get_precision('Product Price'), required=True),
         'standard_price': fields.float('Cost Price', digits_compute= dp.get_precision('Product Price'), required=True),
     }
+
     _defaults = {
         'sequence': lambda *args: 10,
         'type': lambda *args: 'weight',
         'operator': lambda *args: '<=',
-        'price_type': lambda *args: 'fixed',
         'variable_factor': lambda *args: 'weight',
+        'list_price': 0.0,
+        'list_base_price': 0.0,
+        'standard_price': 0.0,
     }
     _order = 'sequence, list_price'

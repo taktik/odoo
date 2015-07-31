@@ -2,7 +2,7 @@ odoo.define('web.GraphWidget', function (require) {
 "use strict";
 
 var core = require('web.core');
-var Model = require('web.Model');
+var Model = require('web.DataModel');
 var Widget = require('web.Widget');
 
 var _t = core._t;
@@ -168,6 +168,7 @@ return Widget.extend({
           // rotateLabels: 40,
           showControls: (this.groupbys.length > 1)
         });
+        chart.yAxis.tickFormat(function(d) { return openerp.web.format_value(d, { type : 'float' });});
 
         chart(svg);
         this.to_remove = chart.update;

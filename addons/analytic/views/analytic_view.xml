@@ -6,13 +6,12 @@
             <field name="name">analytic.analytic.account.form</field>
             <field name="model">account.analytic.account</field>
             <field name="arch" type="xml">
-                <form string="Analytic Account" version="7.0">
+                <form string="Analytic Account">
                     <sheet string="Analytic Account">
-                        <div class="oe_right oe_button_box" name="buttons">
-                        </div>
+                        <div class="oe_button_box" name="button_box"/>
 
                         <div class="oe_title">
-                        <label for="name" class="oe_edit_only"/>
+                            <label for="name" class="oe_edit_only"/>
                             <h1>
                                 <field name="name" class="oe_inline"/>
                             </h1>
@@ -21,39 +20,28 @@
 
                         <group name="main">
                             <group>
-                                <field name="partner_id" on_change="on_change_partner_id(partner_id, name)"/>
-                                <field name="manager_id" context="{'default_groups_ref': ['base.group_user', 'base.group_partner_manager', 'account.group_account_manager']}"/>
-                                <field name="currency_id" attrs="{'invisible': ['|',('type', '&lt;&gt;', 'view'), ('company_id', '&lt;&gt;', False)]}"/>
+                                <field name="partner_id" on_change="on_change_partner_id(partner_id, name)" attrs="{'invisible': [('type','in',['view','normal','template'])]}"/>
+                                <field name="manager_id" context="{'default_groups_ref': ['base.group_user', 'base.group_partner_manager', 'account.group_account_manager']}" attrs="{'invisible': [('type','in',['view','normal','template'])]}"/>
+                                <field name="contract_type" widget="radio" attrs="{'invisible': ['|',('template_id','!=',False),('type','in',['view','normal'])]}"/>
                             </group>
                             <group>
                                 <field name="type" invisible="context.get('default_type', False)"/>
-                                <field name="template_id" on_change="on_change_template(template_id, date_start)" domain="[('type','=','template')]" attrs="{'invisible': [('type','in',['view', 'normal','template'])]}" context="{'default_type' : 'template'}"/>
-                                <field name="code"/>
-                                <field name="parent_id" on_change="on_change_parent(parent_id)"/>
+                                <field name="template_id" on_change="on_change_template(template_id, date_start)" domain="[('type','=','template'),('state','=','open')]" attrs="{'invisible': [('type','in',['view', 'normal','template'])]}" context="{'default_type' : 'template'}"/>
+                                <field name="code" attrs="{'invisible': [('type','=','template')]}"/>
+                                <field name="parent_id" on_change="on_change_parent(parent_id)" attrs="{'invisible': [('type','in',['contract'])]}"/>
+                                <field name="currency_id" attrs="{'invisible': ['|',('type', '&lt;&gt;', 'view'), ('company_id', '&lt;&gt;', False)]}"/>
                                 <field name="company_id" on_change="on_change_company(company_id)" options="{'no_create': True}" groups="base.group_multi_company" attrs="{'required': [('type','&lt;&gt;','view')]}"/>
+                                <field name="date_start" attrs="{'invisible': [('type','in',['view','normal','template'])]}"/>
+                                <label for="date" string="End Date" attrs="{'invisible': [('type','in',['view','normal','template'])]}"/>
+                                <div name="duration" attrs="{'invisible': [('type','=','template')]}">
+                                    <field name="date" class="oe_inline"/>
+                                </div>
                             </group>
                         </group>
                         <notebook>
-                            <page string="Contract Information" name="contract_page" attrs="{'invisible':[('type','not in',['contract', 'template'])]}">
-                                <group string="Renewal" name="contract">
-                                    <p colspan="2" class="oe_grey oe_edit_only">
-                                        Once the end date of the contract is
-                                        passed or the maximum number of service
-                                        units (e.g. support contract) is
-                                        reached, the account manager is notified 
-                                        by email to renew the contract with the
-                                        customer.
-                                    </p>
-                                    <field name="date_start"/>
-                                    <label for="date" string="End Date"/>
-                                    <div name="duration">
-                                        <field name="date" class="oe_inline"/>
-                                    </div>
-                                </group>
-                                <separator string="Terms and Conditions" name="description"/>
-                                <field name="description"/>
-                            </page>
                         </notebook>
+                        <separator string="Terms and Conditions" name="description" attrs="{'invisible': [('type','in',['view','normal'])]}"/>
+                        <field name="description" attrs="{'invisible': [('type','in',['view','normal'])]}"/>
                     </sheet>
                     <div class="oe_chatter">
                         <field name="message_follower_ids" widget="mail_followers"/>
@@ -68,7 +56,7 @@
             <field name="model">account.analytic.account</field>
             <field eval="8" name="priority"/>
             <field name="arch" type="xml">
-                <tree toolbar="1" colors="red:state=='pending';grey:state in ('cancelled','close');blue:type=='view'" string="Analytic Accounts">
+                <tree toolbar="1" decoration-danger="state=='pending'" decoration-muted="state in ('cancelled','close')" decoration-info="type=='view'" string="Analytic Accounts">
                     <field name="complete_name"/>
                     <field name="partner_id"/>
                     <field name="code"/>
@@ -114,13 +102,13 @@
             <field name="model">account.analytic.account</field>
             <field name="field_parent">child_complete_ids</field>
             <field name="arch" type="xml">
-                <tree colors="blue:state=='pending';grey:state in ('close','cancelled');blue:type=='view'" string="Analytic account" toolbar="1">
+                <tree decoration-info="state=='pending' or type=='view'" decoration-muted="state in ('close','cancelled')" string="Analytic account" toolbar="1">
                     <field name="name" invisible="1"/>
                     <field name="complete_name"/>
                     <field name="code"/>
-                    <field name="debit"/>
-                    <field name="credit"/>
-                    <field name="balance"/>
+                    <field name="debit" widget="monetary"/>
+                    <field name="credit" widget="monetary"/>
+                    <field name="balance" widget="monetary"/>
                     <field name="state" invisible="1"/>
                     <field name="currency_id" groups="base.group_multi_currency"/>
                     <field name="date" invisible="1"/>
@@ -197,7 +185,7 @@
                             <field name="company_id" groups="base.group_multi_company"/>
                         </group>
                         <group string="Amount">
-                            <field name="amount"/>
+                            <field name="amount" widget="monetary"/>
                         </group>
                         <group string="Product Information" name="product_info">
                             <label for="unit_amount"/>
@@ -216,8 +204,8 @@
                 <tree string="Analytic Entries">
                     <field name="date"/>
                     <field name="name"/>
-                    <field name="user_id"/>
-                    <field name="amount" sum="Total" invisible="context.get('to_invoice', False)"/>
+                    <field name="user_id" invisible="1"/>
+                    <field name="amount" sum="Total" invisible="context.get('to_invoice', False)" widget="monetary"/>
                     <field name="unit_amount" on_change="on_change_unit_amount(product_id, unit_amount, company_id, product_uom_id)" sum="Total Quantity"/>
                     <field domain="[('type','=','normal')]" name="account_id"/>
                     <field name="company_id" groups="base.group_multi_company"/>
@@ -296,7 +284,7 @@
                           <field name="company_id" on_change="on_change_unit_amount(product_id, unit_amount, company_id, product_uom_id)"/>
                         </group>
                         <group string="Amount">
-                            <field name="amount"/>
+                            <field name="amount" widget="monetary"/>
                         </group>
                         <group string="Product Information">
                             <label for="unit_amount"/>
@@ -374,7 +362,7 @@
         #
 
         <record id="action_account_analytic_journal_open_form" model="ir.actions.act_window">
-            <field name="name">Analytic Journal Items</field>
+            <field name="name">Analytic Entries</field>
             <field name="res_model">account.analytic.line</field>
             <field name="view_type">form</field>
             <field name="view_mode">tree,form,pivot</field>

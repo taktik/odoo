@@ -1,24 +1,7 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2014-Today OpenERP SA (<http://www.openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from openerp import SUPERUSER_ID
 from openerp.osv import osv
 from openerp.tools.translate import _
 from openerp.exceptions import UserError
@@ -32,7 +15,6 @@ class PosInvoiceReport(osv.AbstractModel):
         posorder_obj = self.pool['pos.order']
         report = report_obj._get_report_from_name(cr, uid, 'account.report_invoice')
         selected_orders = posorder_obj.browse(cr, uid, ids, context=context)
-
         ids_to_print = []
         invoiced_posorders_ids = []
         for order in selected_orders:
@@ -47,8 +29,6 @@ class PosInvoiceReport(osv.AbstractModel):
             raise UserError(_('No link to an invoice for %s.') % ', '.join(not_invoiced_orders_names))
 
         docargs = {
-            'doc_ids': ids_to_print,
-            'doc_model': report.model,
-            'docs': selected_orders,
+            'docs': self.pool['account.invoice'].browse(cr, uid, ids_to_print, context=context)
         }
-        return report_obj.render(cr, uid, ids, 'account.report_invoice', docargs, context=context)
+        return report_obj.render(cr, SUPERUSER_ID, ids, 'account.report_invoice', docargs, context=context)

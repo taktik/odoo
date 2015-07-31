@@ -61,16 +61,15 @@
                         <h4>
                             <a t-attf-href="#{blog_url('', ['blog', 'post'], blog=post.blog_id, post=post)}" t-field="post.name"></a>
                             <span t-if="not post.website_published" class="text-warning">
-                                &amp;nbsp;
-                                <span class="fa fa-warning" title="Not published"/>
+                                <span class="fa fa-exclamation-triangle ml8" title="Not published"/>
                             </span>
                         </h4>
                         <div class="text-muted">
-                            <span class="fa fa-calendar"> <span t-field="post.create_date"/> &amp;nbsp;</span>
+                            <span class="fa fa-calendar mr8"> <span t-field="post.create_date"/></span>
                             <span class="fa fa-folder-open"> In
-                                <a t-attf-href="#{blog_url(blog=post.blog_id)}">
+                                <a class="mr8" t-attf-href="#{blog_url(blog=post.blog_id)}">
                                 <span t-field="post.blog_id"/>
-                                </a> &amp;nbsp;
+                                </a>
                             </span>
                         </div>
                         <div class="text-muted fa fa-tags">
@@ -127,7 +126,7 @@
                   <p class="css_editable_hidden">
                     <h1>No blog post yet.</h1>
                   </p>
-                  <p groups="base.group_document_user">
+                  <p groups="base.group_website_designer">
                     Click on "Content" on the top menu to write your first blog post.
                   </p>
                 </div>
@@ -177,7 +176,7 @@
         <p class="post-meta text-muted text-center" t-if="len(blog_post.tag_ids)">
             <span class="fa fa-tags"/>
             <t t-foreach="blog_post.tag_ids" t-as="one_tag">
-                <a t-attf-href="#{blog_url(tag=one_tag.id, date_begin=False, date_end=False)}" t-esc="one_tag.name"/> &amp;nbsp;
+                <a class="mr8" t-attf-href="#{blog_url(tag=one_tag.id, date_begin=False, date_end=False)}" t-esc="one_tag.name"/>
             </t>
         </p>
     </xpath>
@@ -294,7 +293,7 @@
     </xpath>
     <xpath expr="//ul[@id='comments-list']" position="before">
         <section class="mb32 read_width css_editable_mode_hidden">
-            <form id="comment" t-attf-action="/blog/post_comment/#{blog_post.id}" method="POST">
+            <form id="comment" class="js_website_submit_form" t-attf-action="/blog/post_comment/#{blog_post.id}" method="POST">
                 <div class="media">
                     <span class="pull-left">
                         <img t-if="user_id.partner_id.image_small" class="img img-circle media-object" t-att-src="website.image_url(user_id.partner_id, 'image_small')" style="width: 30px"/>
@@ -336,7 +335,7 @@
         <p class="post-meta text-muted text-center" t-if="len(blog_post.tag_ids)">
             <span class="fa fa-tags"/>
             <t t-foreach="blog_post.tag_ids" t-as="one_tag">
-                <a t-attf-href="#{blog_url(tag=one_tag.id)}" t-esc="one_tag.name"/> &amp;nbsp;
+                <a class="mr8" t-attf-href="#{blog_url(tag=one_tag.id)}" t-esc="one_tag.name"/>
             </t>
         </p>
     </xpath>
@@ -482,7 +481,7 @@
 </template>
 
 <!-- User Navbar -->
-<template id="content_new_blogpost" inherit_id="website.user_navbar" groups="base.group_document_user">
+<template id="content_new_blogpost" inherit_id="website.user_navbar" groups="base.group_website_designer">
     <xpath expr="//ul[@id='oe_systray']/li/ul[@class='dropdown-menu oe_content_menu']" position="inside">
          <li><a href="#" data-action="new_blog_post">New Blog Post</a></li>
     </xpath>

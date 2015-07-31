@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Business Applications
-#    Copyright (C) 2004-2012 OpenERP S.A. (<http://openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp.osv import fields, osv
 from openerp.tools.translate import _
@@ -61,6 +43,33 @@ class stock_config_settings(osv.osv_memory):
     _name = 'stock.config.settings'
     _inherit = 'res.config.settings'
 
+    def set_group_locations(self, cr, uid, ids, context=None):
+        """ This method is automatically called by res_config as it begins
+            with set. It is used to implement the 'one group or another'
+            behavior. We have to perform some group manipulation by hand
+            because in res_config.execute(), set_* methods are called
+            after group_*; therefore writing on an hidden res_config file
+            could not work.
+            If group_stock_multiple_locations is checked: remove group_stock_single_location
+            from group_user, remove the users. Otherwise, just add
+            group_stock_single_location in group_user.
+            The inverse logic about group_stock_multiple_locations is managed by the
+            normal behavior of 'group_stock_multiple_locations' field.
+        """
+        def ref(xml_id):
+            mod, xml = xml_id.split('.', 1)
+            return self.pool['ir.model.data'].get_object(cr, uid, mod, xml, context)
+
+        for obj in self.browse(cr, uid, ids, context=context):
+            config_group = ref('stock.group_single_location')
+            base_group = ref('base.group_user')
+            if obj.group_stock_multiple_locations:
+                base_group.write({'implied_ids': [(3, config_group.id)]})
+                config_group.write({'users': [(3, u.id) for u in base_group.users]})
+            else:
+                base_group.write({'implied_ids': [(4, config_group.id)]})
+        return True
+
     _columns = {
         'company_id': fields.many2one('res.company', 'Company', required=True),
         'module_procurement_jit': fields.boolean("Generate procurement in real time",
@@ -82,10 +91,10 @@ This installs the module product_expiry."""),
         'group_uom': fields.boolean("Manage different units of measure for products",
             implied_group='product.group_uom',
             help="""Allows you to select and maintain different units of measure for products."""),
-        'group_uos': fields.boolean("Invoice products in a different unit of measure than the sales order",
+        'group_uos': fields.boolean("Store products in a different unit of measure than the sales order",
             implied_group='product.group_uos',
-            help='Allows you to sell units of a product, but invoice based on a different unit of measure.\n'
-                 'For instance, you can sell pieces of meat that you invoice based on their weight.'),
+            help='Allows you to store units of a product, but sell and invoice based on a different unit of measure.\n'
+                 'For instance, you can store pieces of meat that you sell and invoice based on their weight.'),
         'group_stock_packaging': fields.boolean("Allow to define several packaging methods on products",
             implied_group='product.group_stock_packaging',
             help="""Allows you to create and manage your packaging dimensions and types you want to be maintained in your system."""),
@@ -98,10 +107,13 @@ This installs the module product_expiry."""),
         'group_stock_tracking_owner': fields.boolean("Manage owner on stock",
             implied_group='stock.group_tracking_owner',
             help="""This way you can receive products attributed to a certain owner. """),
-        'group_stock_multiple_locations': fields.boolean("Manage multiple locations and warehouses",
+        'group_stock_multiple_locations': fields.boolean("Manage multiple locations",
             implied_group='stock.group_locations',
             help="""This will show you the locations and allows you to define multiple picking types and warehouses."""),
-        'group_stock_adv_location': fields.boolean("Manage advanced routes for your warehouse",
+        'group_stock_single_location': fields.boolean("Manage only one location per warehouse",
+            implied_group='stock.group_single_location',
+            help="""This implies that you manage one location per warehouse, i.e. no internal transfer is possible."""),
+        'group_stock_adv_location': fields.boolean("Manage routes for your warehouse",
             implied_group='stock.group_adv_location',
             help="""This option supplements the warehouse application by effectively implementing Push and Pull inventory flows through Routes."""),
         'decimal_precision': fields.integer('Decimal precision on weight', help="As an example, a decimal precision of 2 will allow weights like: 9.99 kg, whereas a decimal precision of 4 will allow weights like:  0.0231 kg."),

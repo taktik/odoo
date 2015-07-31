@@ -7,7 +7,7 @@ var data = require('web.data');
 var Dialog = require('web.Dialog');
 var FavoriteMenu = require('web.FavoriteMenu');
 var form_common = require('web.form_common');
-var Model = require('web.Model');
+var Model = require('web.DataModel');
 var pyeval = require('web.pyeval');
 var ViewManager = require('web.ViewManager');
 
@@ -33,7 +33,7 @@ var DashBoard = form_common.FormWidget.extend({
     start: function() {
         var self = this;
         this._super.apply(this, arguments);
-        this.$el.addClass('o-dashboard');
+        this.$el.addClass('o_dashboard');
 
         this.$('.oe_dashboard_column').sortable({
             connectWith: '.oe_dashboard_column',
@@ -90,13 +90,14 @@ var DashBoard = form_common.FormWidget.extend({
         var qdict = {
             current_layout : this.$el.find('.oe_dashboard').attr('data-layout')
         };
-        var $dialog = new Dialog(this, {
-                            title: _t("Edit Layout"),
-                        }, QWeb.render('DashBoard.layouts', qdict)).open();
-        $dialog.$el.find('li').click(function() {
+        var dialog = new Dialog(this, {
+            title: _t("Edit Layout"),
+            $content: QWeb.render('DashBoard.layouts', qdict)
+        }).open();
+        dialog.$el.find('li').click(function() {
             var layout = $(this).attr('data-layout');
             self.do_change_layout(layout);
-            $dialog.$dialog_box.modal('hide'); 
+            dialog.close();
         });
     },
     do_change_layout: function(new_layout) {
@@ -340,14 +341,15 @@ FavoriteMenu.include({
         if (am && am.get_inner_widget() instanceof ViewManager) {
             this.view_manager = am.get_inner_widget();
             this.add_to_dashboard_available = true;
-            this.$('.favorites-menu').append(QWeb.render('SearchView.addtodashboard'));
-            var $add_to_dashboard = this.$('.add-to-dashboard');
-            this.$add_dashboard_btn = $add_to_dashboard.eq(2).find('button');
-            this.$add_dashboard_input = $add_to_dashboard.eq(1).find('input');
-            this.$add_dashboard_link = $add_to_dashboard.first();
+            this.$('.o_favorites_menu').append(QWeb.render('SearchView.addtodashboard'));
+            this.$add_to_dashboard = this.$('.o_add_to_dashboard');
+            this.$add_dashboard_btn = this.$add_to_dashboard.eq(1).find('button');
+            this.$add_dashboard_input = this.$add_to_dashboard.eq(0).find('input');
+            this.$add_dashboard_link = this.$('.o_add_to_dashboard_link');
             var title = this.searchview.get_title();
             this.$add_dashboard_input.val(title);
-            this.$add_dashboard_link.click(function () {
+            this.$add_dashboard_link.click(function (e) {
+                e.preventDefault();
                 self.toggle_dashboard_menu();
             });
             this.$add_dashboard_btn.click(this.proxy('add_dashboard'));
@@ -355,11 +357,10 @@ FavoriteMenu.include({
     },
     toggle_dashboard_menu: function (is_open) {
         this.$add_dashboard_link
-            .toggleClass('closed-menu', !(_.isUndefined(is_open)) ? !is_open : undefined)
-            .toggleClass('open-menu', is_open);
-        this.$add_dashboard_btn.toggle(is_open);
-        this.$add_dashboard_input.toggle(is_open);
-        if (this.$add_dashboard_link.hasClass('open-menu')) {
+            .toggleClass('o_closed_menu', !(_.isUndefined(is_open)) ? !is_open : undefined)
+            .toggleClass('o_open_menu', is_open);
+        this.$add_to_dashboard.toggle(is_open);
+        if (this.$add_dashboard_link.hasClass('o_open_menu')) {
             this.$add_dashboard_input.focus();
         }
     },

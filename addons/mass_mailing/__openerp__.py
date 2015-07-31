@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2013-Today OpenERP SA (<http://www.openerp.com>)
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
     'name': 'Mass Mailing Campaigns',
@@ -34,10 +16,10 @@ professional emails and reuse templates in a few clicks.
     'depends': [
         'mail',
         'marketing',
-        'web_kanban_gauge',
-        'website_mail',
-        'website_links',
         'utm',
+        'link_tracker',
+        'web_editor',
+        'web_kanban_gauge',
     ],
     'data': [
         'data/mail_data.xml',
@@ -47,13 +29,21 @@ professional emails and reuse templates in a few clicks.
         'views/mass_mailing_report.xml',
         'views/mass_mailing.xml',
         'views/res_config.xml',
-        'views/res_partner.xml',
         'views/email_template.xml',
-        'views/website_mass_mailing.xml',
-        'views/snippets.xml',
         'security/ir.model.access.csv',
         'views/mass_mailing.xml',
-        'views/unsubscribe.xml',
+        'views/editor_field_html.xml',
+        'views/snippets_themes.xml',
+        'views/snippets_themes_options.xml',
+        'views/theme_list.xml',
+        'views/theme/neopolitan_snippets.xml',
+        'views/theme/skyline_snippets.xml',
+        'views/theme/narrative_snippets.xml',
+        'views/theme/sunday_snippets.xml',
+        'views/theme/go_snippets.xml',
+        'views/theme/airmail_snippets.xml',
+        'views/theme/zenflat_snippets.xml',
+        'views/theme/cleave_snippets.xml',
     ],
     'qweb': [],
     'demo': [

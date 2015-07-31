@@ -7,7 +7,7 @@ var data = require('web.data');
 var DataExport = require('web.DataExport');
 var formats = require('web.formats');
 var common = require('web.list_common');
-var Model = require('web.Model');
+var Model = require('web.DataModel');
 var pyeval = require('web.pyeval');
 var session = require('web.session');
 var Sidebar = require('web.Sidebar');
@@ -20,8 +20,21 @@ var _lt = core._lt;
 var QWeb = core.qweb;
 var list_widget_registry = core.list_widget_registry;
 
+// Allowed decoration on the list's rows: bold, italic and bootstrap semantics classes
+var row_decoration = [
+    'decoration-bf',
+    'decoration-it',
+    'decoration-danger',
+    'decoration-info',
+    'decoration-muted',
+    'decoration-primary',
+    'decoration-success',
+    'decoration-warning'
+];
+
 var ListView = View.extend( /** @lends instance.web.ListView# */ {
     _template: 'ListView',
+    accesskey: 'L',
     display_name: _lt('List'),
     defaults: {
         // records can be selected one by one
@@ -166,55 +179,26 @@ var ListView = View.extend( /** @lends instance.web.ListView# */ {
         return this._super();
     },
     /**
-     * Returns the style for the provided record in the current view (from the
-     * ``@colors`` and ``@fonts`` attributes)
+     * Computes and returns the classnames for the provided record (from the
+     * ``@decoration`` attribute)
      *
      * @param {Record} record record for the current row
-     * @returns {String} CSS style declaration
+     * @returns {String} classnames
      */
-    style_for: function (record) {
-        var len, style= '';
-
+    compute_decoration_classnames: function (record) {
+        var classnames= '';
         var context = _.extend({}, record.attributes, {
             uid: session.uid,
             current_date: moment().format('YYYY-MM-DD')
             // TODO: time, datetime, relativedelta
         });
-        var i;
-        var pair;
-        var expression;
-        if (this.fonts) {
-            for(i=0, len=this.fonts.length; i<len; ++i) {
-                pair = this.fonts[i];
-                var font = pair[0];
-                expression = pair[1];
-                if (py.PY_isTrue(py.evaluate(expression, context))) {
-                    switch(font) {
-                    case 'bold':
-                        style += 'font-weight: bold;';
-                        break;
-                    case 'italic':
-                        style += 'font-style: italic;';
-                        break;
-                    case 'underline':
-                        style += 'text-decoration: underline;';
-                        break;
-                    }
-                }
-            }
-        }
 
-        if (!this.colors) { return style; }
-        for(i=0, len=this.colors.length; i<len; ++i) {
-            pair = this.colors[i];
-            var color = pair[0];
-            expression = pair[1];
-            if (py.PY_isTrue(py.evaluate(expression, context))) {
-                return style += 'color: ' + color + ';';
+        _.each(this.decoration, function(expr, decoration) {
+            if (py.PY_isTrue(py.evaluate(expr, context))) {
+                classnames += ' ' + decoration.replace('decoration', 'text');
             }
-            // TODO: handle evaluation errors
-        }
-        return style;
+        });
+        return classnames;
     },
     /**
      * Called after loading the list view's description, sets up such things
@@ -243,26 +227,13 @@ var ListView = View.extend( /** @lends instance.web.ListView# */ {
         this.fields_view = data;
         this.name = "" + this.fields_view.arch.attrs.string;
 
-        if (this.fields_view.arch.attrs.colors) {
-            this.colors = _(this.fields_view.arch.attrs.colors.split(';')).chain()
-                .compact()
-                .map(function(color_pair) {
-                    var pair = color_pair.split(':'),
-                        color = pair[0],
-                        expr = pair[1];
-                    return [color, py.parse(py.tokenize(expr)), expr];
-                }).value();
-        }
-
-        if (this.fields_view.arch.attrs.fonts) {
-            this.fonts = _(this.fields_view.arch.attrs.fonts.split(';')).chain().compact()
-                .map(function(font_pair) {
-                    var pair = font_pair.split(':'),
-                        font = pair[0],
-                        expr = pair[1];
-                    return [font, py.parse(py.tokenize(expr)), expr];
-                }).value();
-        }
+        // Retrieve the decoration defined on the model's list view
+        this.decoration = _.pick(this.fields_view.arch.attrs, function(value, key) {
+            return row_decoration.indexOf(key) >= 0;
+        });
+        this.decoration = _.mapObject(this.decoration, function(value) {
+            return py.parse(py.tokenize(value));
+        });
 
         this.setup_columns(this.fields_view.fields, this.grouped);
 
@@ -307,7 +278,7 @@ var ListView = View.extend( /** @lends instance.web.ListView# */ {
         if (!this.$buttons) {
             this.$buttons = $(QWeb.render("ListView.buttons", {'widget': this}));
 
-            this.$buttons.find('.oe_list_add').click(this.proxy('do_add_record'));
+            this.$buttons.find('.o_list_button_add').click(this.proxy('do_add_record'));
 
             $node = $node || this.options.$buttons;
             if ($node) {
@@ -1053,7 +1024,7 @@ ListView.List = Class.extend( /** @lends instance.web.ListView.List# */{
                 $(self).trigger(
                         'selected', [selection.ids, selection.records, ! checked]);
             })
-            .delegate('td.oe_list_record_delete button', 'click', function (e) {
+            .delegate('td.oe_list_record_delete', 'click', function (e) {
                 e.stopPropagation();
                 var $row = $(e.target).closest('tr');
                 $(self).trigger('deleted', [[self.row_id($row)]]);
@@ -1195,7 +1166,7 @@ ListView.List = Class.extend( /** @lends instance.web.ListView.List# */{
             cells.push('<td title="' + column.string + '">&nbsp;</td>');
         });
         if (this.options.deletable) {
-            cells.push('<td class="oe_list_record_delete"><button type="button" style="visibility: hidden"> </button></td>');
+            cells.push('<td class="oe_list_record_delete"></td>');
         }
         cells.unshift('<tr>');
         cells.push('</tr>');
@@ -1928,7 +1899,7 @@ var ColumnBinary = Column.extend({
      * @private
      */
     _format: function (row_data, options) {
-        var text = _t("Download");
+        var text = _t("Download"), filename=_t('Binary file');
         var value = row_data[this.id].value;
         if (!value) {
             return options.value_if_empty || '';
@@ -1946,11 +1917,13 @@ var ColumnBinary = Column.extend({
         if (this.filename && row_data[this.filename]) {
             text = _.str.sprintf(_t("Download \"%s\""), formats.format_value(
                     row_data[this.filename].value, {type: 'char'}));
+            filename = row_data[this.filename].value;
         }
-        return _.template('<a href="<%-href%>"><%-text%></a> (<%-size%>)')({
+        return _.template('<a download="<%-download%>" href="<%-href%>"><%-text%></a> (<%-size%>)')({
             text: text,
             href: download_url,
             size: utils.binary_to_binsize(value),
+            download: filename,
         });
     }
 });
@@ -2074,9 +2047,9 @@ var ColumnMonetary = Column.extend({
         var value = formats.format_value(row_data[this.id].value || 0, {type: this.type, digits: digits_precision}, options.value_if_empty);
         if (currency) {
             if (currency.position === "after") {
-                value += ' ' + currency.symbol;
+                value += '&nbsp;' + currency.symbol;
             } else {
-                value = currency.symbol + ' ' + value;
+                value = currency.symbol + '&nbsp;' + value;
             }
         }
         return value;

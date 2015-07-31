@@ -8,17 +8,42 @@
         </record>
 
         <!-- Categories -->
-        <record id="project_category_01" model="project.category">
+        <record id="project_tags_00" model="project.tags">
             <field name="name">Contact's suggestion</field>
         </record>
-        <record id="project_category_02" model="project.category">
+        <record id="project_tags_01" model="project.tags">
             <field name="name">Feature request</field>
         </record>
-        <record id="project_category_03" model="project.category">
+        <record id="project_tags_02" model="project.tags">
             <field name="name">Experiment</field>
         </record>
-        <record id="project_category_04" model="project.category">
+        <record id="project_tags_03" model="project.tags">
             <field name="name">Usability</field>
+        </record>
+
+        <!-- Stages -->
+        <record id="project_stage_0" model="project.task.type">
+            <field name="sequence">1</field>
+            <field name="name">To Do</field>
+            <field name="legend_blocked">Not validated</field>
+            <field name="legend_priority">Use the priority for tasks related to gold customers</field>
+        </record>
+        <record id="project_stage_1" model="project.task.type">
+            <field name="sequence">10</field>
+            <field name="name">In Progress</field>
+            <field name="legend_blocked">Need functional or technical help</field>
+            <field name="legend_done">Buzz or set as done</field>
+        </record>
+        <record id="project_stage_2" model="project.task.type">
+            <field name="sequence">20</field>
+            <field name="name">Done</field>
+            <field name="fold" eval="True"/>
+        </record>
+        <record id="project_stage_3" model="project.task.type">
+            <field name="sequence">30</field>
+            <field name="name">Cancelled</field>
+            <field name="legend_done">Ready to reopen</field>
+            <field name="fold" eval="True"/>
         </record>
 
         <record id="project_project_1" model="project.project">
@@ -30,18 +55,12 @@
             <field name="partner_id" ref="base.res_partner_10"/>
             <field name="parent_id" ref="all_projects_account"/>
             <field name="privacy_visibility">public</field>
-            <field name="members" eval="[(6, 0, [
-                    ref('base.user_root'),
-                    ref('base.user_demo')])]"/>
             <field name="user_id" ref="base.user_demo"/>
             <field name="description">Implement new website for Sale and Warehouse Management for a customer.</field>
             <field name="alias_model">project.task</field>
-        </record>
-
-        <!-- We assign after so that default values applies -->
-        <record id="project_project_1" model="project.project">
             <field name="type_ids" eval="[(4, ref('project_stage_0')) ,(4,ref('project_stage_1'))]"/>
         </record>
+
 
         <record id="project_project_2" model="project.project">
             <field name="name">Research &amp; Development</field>
@@ -54,11 +73,6 @@
                     ref('base.partner_demo')])]"/>
         </record>
 
-        <!-- We assign after so that default values applies -->
-        <record id="project_project_2" model="project.project">
-            <field name="type_ids" eval="[(4, ref('project_stage_1'))]"/>
-        </record>
-
         <record id="project_project_3" model="project.project">
             <field name="sequence">10</field>
             <field name="parent_id" ref="all_projects_account"/>
@@ -67,11 +81,6 @@
             <field name="user_id" ref="base.user_demo"/>
             <field name="alias_model">project.task</field>
             <field name="privacy_visibility">employees</field>
-            <field name="members" eval="[(4, ref('base.user_root')), (4, ref('base.user_demo'))]"/>
-        </record>
-
-        <record id="project_project_3" model="project.project">
-            <field name="type_ids" eval="[(4, ref('project_stage_1')),(4,ref('project_stage_2'))]"/>
         </record>
 
         <record id="project_project_4" model="project.project">
@@ -83,11 +92,6 @@
             <field name="privacy_visibility">followers</field>
             <field name="alias_model">project.task</field>
             <field name="privacy_visibility">employees</field>
-            <field name="members" eval="[(4, ref('base.user_root')), (4,ref('base.user_demo'))]"/>
-        </record>
-
-        <record id="project_project_4" model="project.project">
-            <field name="type_ids" eval="[(4, ref('project_stage_1')),(4,ref('project_stage_2'))]"/>
         </record>
 
         <record id="project_project_5" model="project.project">
@@ -98,15 +102,7 @@
             <field name="label_tasks">Databases</field>
             <field name="alias_model">project.task</field>
             <field name="privacy_visibility">followers</field>
-            <field name="members" eval="[(6, 0, [
-                    ref('base.user_root'),
-                    ref('base.user_demo')])]"/>
         </record>
-
-        <record id="project_project_5" model="project.project">
-            <field name="type_ids" eval="[(4, ref('project_stage_2'))]"/>
-        </record>
-
 
         <!-- Tasks -->
         <record id="project_task_1" model="project.task">
@@ -150,8 +146,8 @@
             <field name="date_deadline" eval="time.strftime('%Y-%m-19')"/>
             <field name="color">5</field>
             <field name="stage_id" ref="project_stage_1"/>
-            <field name="categ_ids" eval="[(6, 0, [
-                    ref('project_category_02')])]"/>
+            <field name="tag_ids" eval="[(6, 0, [
+                    ref('project_tags_01')])]"/>
         </record>
         <record id="project_task_5" model="project.task">
             <field name="planned_hours" eval="76.0"/>
@@ -164,8 +160,8 @@
             <field name="priority">0</field>
             <field name="date_deadline" eval="time.strftime('%Y-%m-%d')"/>
             <field name="stage_id" ref="project_stage_1"/>
-            <field name="categ_ids" eval="[(6, 0, [
-                    ref('project_category_02')])]"/>
+            <field name="tag_ids" eval="[(6, 0, [
+                    ref('project_tags_01')])]"/>
         </record>
         <record id="project_task_6" model="project.task">
             <field name="planned_hours" eval="24.0"/>
@@ -194,8 +190,8 @@
             <field name="name">New portal system</field>
             <field name="priority">0</field>
             <field name="stage_id" ref="project_stage_2"/>
-            <field name="categ_ids" eval="[(6, 0, [
-                    ref('project.project_category_03')])]"/>
+            <field name="tag_ids" eval="[(6, 0, [
+                    ref('project.project_tags_02')])]"/>
         </record>
         <record id="project_task_9" model="project.task">
             <field name="planned_hours" eval="18.0"/>
@@ -223,9 +219,9 @@
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">User interface improvements</field>
-            <field name="categ_ids" eval="[(6, 0, [
-                    ref('project.project_category_02'),
-                    ref('project.project_category_04')])]"/>
+            <field name="tag_ids" eval="[(6, 0, [
+                    ref('project.project_tags_01'),
+                    ref('project.project_tags_03')])]"/>
             <field name="stage_id" ref="project_stage_1"/>
         </record>
 
@@ -268,8 +264,8 @@
             <field name="name">User Interface design</field>
             <field name="stage_id" ref="project_stage_2"/>
             <field name="date_start">2011-02-06</field>
-            <field name="categ_ids" eval="[(6, 0, [
-                    ref('project_category_04')])]"/>
+            <field name="tag_ids" eval="[(6, 0, [
+                    ref('project_tags_03')])]"/>
         </record>
 
         <record id="project_task_16" model="project.task">
@@ -310,8 +306,8 @@
             <field name="user_id" eval="False"/>
             <field name="project_id" ref="project.project_project_4"/>
             <field name="name">Basic outline</field>
-            <field name="categ_ids" eval="[(6, 0, [
-                    ref('project_category_03')])]"/>
+            <field name="tag_ids" eval="[(6, 0, [
+                    ref('project_tags_02')])]"/>
         </record>
 
         <record id="project_task_20" model="project.task">
@@ -330,8 +326,8 @@
             <field name="stage_id" ref="project_stage_1"/>
             <field name="project_id" ref="project.project_project_4"/>
             <field name="name">Useablity review</field>
-            <field name="categ_ids" eval="[(6, 0, [
-                    ref('project_category_04')])]"/>
+            <field name="tag_ids" eval="[(6, 0, [
+                    ref('project_tags_03')])]"/>
         </record>
 
         <record id="project_task_22" model="project.task">
@@ -363,8 +359,8 @@
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_5"/>
             <field name="name">Modifications asked by the customer</field>
-            <field name="categ_ids" eval="[(6, 0, [
-                    ref('project_category_01')])]"/>
+            <field name="tag_ids" eval="[(6, 0, [
+                    ref('project_tags_00')])]"/>
         </record>
 
         <record id="project_task_25" model="project.task">
@@ -387,10 +383,6 @@
             <field name="stage_id" ref="project_stage_0"/>
         </record>
 
-        <!-- Schedule tasks to assign users and dates -->
-        <function model="project.project" name="schedule_tasks"
-            eval="[ref('project_project_3'), ref('project_project_4'), ref('project_project_5')], {'install_mode': True}"/>
-
         <record id="message_task_1" model="mail.message">
             <field name="model">project.task</field>
             <field name="res_id" ref="project_task_22"/>
@@ -398,7 +390,7 @@
 There is a change in customer requirement.
 Can you check the document from customer again.
 Thanks,</field>
-            <field name="type">comment</field>
+            <field name="message_type">comment</field>
             <field name="author_id" ref="base.partner_root"/>
         </record>
         <record id="message_task_2" model="mail.message">
@@ -407,7 +399,7 @@ Thanks,</field>
             <field name="parent_id" ref="message_task_1"/>
             <field name="body">Ok, I have checked the mail,
 I will update the document and let you know.</field>
-            <field name="type">comment</field>
+            <field name="message_type">comment</field>
             <field name="author_id" ref="base.partner_demo"/>
         </record>
         <record id="message_task_3" model="mail.message">
@@ -416,7 +408,7 @@ I will update the document and let you know.</field>
             <field name="parent_id" ref="message_task_2"/>
             <field name="body">Fine!
 Send it ASAP, its urgent.</field>
-            <field name="type">comment</field>
+            <field name="message_type">comment</field>
             <field name="author_id" ref="base.partner_root"/>
         </record>
 

@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Business Applications
-#    Copyright (C) 2004-2012 OpenERP S.A. (<http://openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp.osv import fields, osv
 from openerp.tools.translate import _
@@ -29,8 +11,8 @@ class project_configuration(osv.osv_memory):
     _columns = {
         'module_sale_service': fields.boolean('Generate tasks from sale orders',
             help='This feature automatically creates project tasks from service products in sale orders. '
-                 'More precisely, tasks are created for procurement lines with product of type \'Service\', '
-                 'procurement method \'Make to Order\', and supply method \'Manufacture\'.\n'
+                 'In order to make it work,  the product has to be a service and \'Create Task Automatically\' '
+                 'has to be flagged on the procurement tab in the product form.\n'
                  '-This installs the module sale_service.'),
         'module_pad': fields.boolean("Use integrated collaborative note pads on task",
             help='Lets the company customize which Pad installation should be used to link to new pads '
@@ -58,9 +40,6 @@ class project_configuration(osv.osv_memory):
         'group_time_work_estimation_tasks': fields.boolean("Manage time estimation on tasks",
             implied_group='project.group_time_work_estimation_tasks',
             help="Allows you to compute Time Estimation on tasks."),
-        'group_manage_delegation_task': fields.boolean("Allow task delegation",
-            implied_group='project.group_delegate_task',
-            help="Allows you to delegate tasks to other users."),
         'generate_project_alias': fields.boolean("Automatically generate an email alias at the project creation",
             help="Odoo will generate an email alias at the project creation from project name."),
     }

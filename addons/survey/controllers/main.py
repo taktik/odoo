@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2013-Today OpenERP SA (<http://www.openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
 import logging
@@ -105,11 +87,11 @@ class WebsiteSurvey(http.Controller):
             user_input = user_input_obj.browse(cr, uid, [user_input_id], context=context)[0]
         else:
             try:
-                user_input_id = user_input_obj.search(cr, uid, [('token', '=', token)], context=context)[0]
+                user_input_id = user_input_obj.search(cr, SUPERUSER_ID, [('token', '=', token)], context=context)[0]
             except IndexError:  # Invalid token
                 return request.website.render("website.403")
             else:
-                user_input = user_input_obj.browse(cr, uid, [user_input_id], context=context)[0]
+                user_input = user_input_obj.browse(cr, SUPERUSER_ID, [user_input_id], context=context)[0]
 
         # Do not open expired survey
         errpage = self._check_deadline(cr, uid, user_input, context=context)
@@ -140,11 +122,11 @@ class WebsiteSurvey(http.Controller):
 
         # Load the user_input
         try:
-            user_input_id = user_input_obj.search(cr, uid, [('token', '=', token)])[0]
+            user_input_id = user_input_obj.search(cr, SUPERUSER_ID, [('token', '=', token)])[0]
         except IndexError:  # Invalid token
             return request.website.render("website.403")
         else:
-            user_input = user_input_obj.browse(cr, uid, [user_input_id], context=context)[0]
+            user_input = user_input_obj.browse(cr, SUPERUSER_ID, [user_input_id], context=context)[0]
 
         # Do not display expired survey (even if some pages have already been
         # displayed -- There's a time for everything!)
@@ -189,9 +171,9 @@ class WebsiteSurvey(http.Controller):
 
         # Fetch previous answers
         if page:
-            ids = user_input_line_obj.search(cr, uid, [('user_input_id.token', '=', token), ('page_id', '=', page.id)], context=context)
+            ids = user_input_line_obj.search(cr, SUPERUSER_ID, [('user_input_id.token', '=', token), ('page_id', '=', page.id)], context=context)
         else:
-            ids = user_input_line_obj.search(cr, uid, [('user_input_id.token', '=', token)], context=context)
+            ids = user_input_line_obj.search(cr, SUPERUSER_ID, [('user_input_id.token', '=', token)], context=context)
         previous_answers = user_input_line_obj.browse(cr, uid, ids, context=context)
 
         # Return non empty answers in a JSON compatible format
@@ -231,7 +213,7 @@ class WebsiteSurvey(http.Controller):
         ret = {}
 
         # Fetch answers
-        ids = user_input_line_obj.search(cr, uid, [('user_input_id.token', '=', token)], context=context)
+        ids = user_input_line_obj.search(cr, SUPERUSER_ID, [('user_input_id.token', '=', token)], context=context)
         previous_answers = user_input_line_obj.browse(cr, uid, ids, context=context)
 
         # Compute score for each question
@@ -268,14 +250,15 @@ class WebsiteSurvey(http.Controller):
 
             user_input_line_obj = request.registry['survey.user_input_line']
             try:
-                user_input_id = user_input_obj.search(cr, uid, [('token', '=', post['token'])], context=context)[0]
+                user_input_id = user_input_obj.search(cr, SUPERUSER_ID, [('token', '=', post['token'])], context=context)[0]
             except KeyError:  # Invalid token
                 return request.website.render("website.403")
+            user_input = user_input_obj.browse(cr, SUPERUSER_ID, user_input_id, context=context)
+            user_id = uid if user_input.type != 'link' else SUPERUSER_ID
             for question in questions:
                 answer_tag = "%s_%s_%s" % (survey.id, page_id, question.id)
-                user_input_line_obj.save_lines(cr, uid, user_input_id, question, post, answer_tag, context=context)
+                user_input_line_obj.save_lines(cr, user_id, user_input_id, question, post, answer_tag, context=context)
 
-            user_input = user_input_obj.browse(cr, uid, user_input_id, context=context)
             go_back = post['button_submit'] == 'previous'
             next_page, _, last = survey_obj.next_page(cr, uid, user_input, page_id, go_back=go_back, context=context)
             vals = {'last_displayed_page_id': page_id}
@@ -283,7 +266,7 @@ class WebsiteSurvey(http.Controller):
                 vals.update({'state': 'done'})
             else:
                 vals.update({'state': 'skip'})
-            user_input_obj.write(cr, uid, user_input_id, vals, context=context)
+            user_input_obj.write(cr, user_id, user_input_id, vals, context=context)
             ret['redirect'] = '/survey/fill/%s/%s' % (survey.id, post['token'])
             if go_back:
                 ret['redirect'] += '/prev'

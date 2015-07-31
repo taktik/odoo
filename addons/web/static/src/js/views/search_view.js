@@ -6,7 +6,7 @@ var core = require('web.core');
 var FavoriteMenu = require('web.FavoriteMenu');
 var FilterMenu = require('web.FilterMenu');
 var GroupByMenu = require('web.GroupByMenu');
-var Model = require('web.Model');
+var Model = require('web.DataModel');
 var pyeval = require('web.pyeval');
 var search_inputs = require('web.search_inputs');
 var utils = require('web.utils');
@@ -393,7 +393,7 @@ var SearchView = Widget.extend(/** @lends instance.web.SearchView# */{
     },    
     start: function() {
         if (this.headless) {
-            this.$el.hide();
+            this.do_hide();
         }
         this.toggle_visibility(false);
         this.$facets_container = this.$('div.oe_searchview_facets');
@@ -510,7 +510,7 @@ var SearchView = Widget.extend(/** @lends instance.web.SearchView# */{
         };
     },
     toggle_visibility: function (is_visible) {
-        this.$el.toggle(!this.headless && is_visible);
+        this.do_toggle(!this.headless && is_visible);
         if (this.$buttons) {
             this.$buttons.toggle(!this.headless && is_visible && this.visible_filters);
         }
@@ -694,9 +694,16 @@ var SearchView = Widget.extend(/** @lends instance.web.SearchView# */{
                 current_group = [];
             }
             if (filter.item.tag === 'field') {
-                var attrs = filter.item.attrs,
-                    field = self.fields_view_get.fields[attrs.name],
-                    Obj = core.search_widgets_registry.get_any([attrs.widget, field.type]);
+                var attrs = filter.item.attrs;
+                var field = self.fields_view_get.fields[attrs.name];
+
+                // M2O combined with selection widget is pointless and broken in search views,
+                // but has been used in the past for unsupported hacks -> ignore it
+                if (field.type === "many2one" && attrs.widget === "selection") {
+                    attrs.widget = undefined;
+                }
+
+                var Obj = core.search_widgets_registry.get_any([attrs.widget, field.type]);
                 if (Obj) {
                     self.search_fields.push(new (Obj) (filter.item, field, self));
                 }
@@ -888,14 +895,15 @@ return Widget.extend({
     },
     expand: function () {
         var self = this;
-        this.current_result.expand(this.get_search_string()).then(function (results) {
+        var current_result = this.current_result;
+        current_result.expand(this.get_search_string()).then(function (results) {
             (results || [{label: '(no result)'}]).reverse().forEach(function (result) {
                 result.indent = true;
                 var $li = self.make_list_item(result);
-                self.current_result.$el.after($li);
+                current_result.$el.after($li);
             });
-            self.current_result.expanded = true;
-            self.current_result.$el.find('span.oe-expand').html('▼');
+            current_result.expanded = true;
+            current_result.$el.find('span.oe-expand').html('▼');
         });
     },
     fold: function () {

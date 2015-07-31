@@ -21,6 +21,7 @@ import babel.dates
 import werkzeug
 from lxml import etree, html
 from PIL import Image
+import psycopg2
 
 import openerp.http
 import openerp.tools
@@ -504,7 +505,6 @@ class QWeb(orm.AbstractModel):
 
         record, field_name = template_attributes["field"].rsplit('.', 1)
         record = self.eval_object(record, qwebcontext)
-
         field = record._fields[field_name]
         foptions = self.eval_format(template_attributes.get('field-options') or '{}', qwebcontext)
         options = json.loads(foptions)
@@ -593,7 +593,7 @@ class FieldConverter(osv.AbstractModel):
             ('data-oe-type', field_type),
             ('data-oe-expression', t_att['field']),
         ]
-        if record._fields[field_name].readonly:
+        if field.readonly:
             data.append(('data-oe-readonly', 1))
         return data
 
@@ -646,7 +646,8 @@ class FieldConverter(osv.AbstractModel):
                 _build_attribute(name, value)
                 for name, value in self.attributes(
                     cr, uid, field_name, record, options,
-                    source_element, g_att, t_att, qweb_context)
+                    source_element, g_att, t_att, qweb_context,
+                    context=context)
             )
 
         return self.render_element(cr, uid, source_element, t_att, g_att,
@@ -877,9 +878,9 @@ class MonetaryConverter(osv.AbstractModel):
 
         pre = post = u''
         if display_currency.position == 'before':
-            pre = u'{symbol} '
+            pre = u'{symbol}\N{NO-BREAK SPACE}'
         else:
-            post = u' {symbol}'
+            post = u'\N{NO-BREAK SPACE}{symbol}'
 
         return HTMLSafe(u'{pre}<span class="oe_currency_value">{0}</span>{post}'.format(
             formatted_amount,
@@ -1038,9 +1039,9 @@ class QwebWidgetMonetary(osv.AbstractModel):
         )
         pre = post = u''
         if display.position == 'before':
-            pre = u'{symbol} '
+            pre = u'{symbol}\N{NO-BREAK SPACE}'
         else:
-            post = u' {symbol}'
+            post = u'\N{NO-BREAK SPACE}{symbol}'
 
         return u'{pre}{0}{post}'.format(
             formatted_amount, pre=pre, post=post
@@ -1285,14 +1286,18 @@ class AssetsBundle(object):
 
     def set_cache(self, type, content):
         ira = self.registry['ir.attachment']
-        ira.invalidate_bundle(self.cr, openerp.SUPERUSER_ID, type=type, xmlid=self.xmlid)
         url = '/web/%s/%s/%s' % (type, self.xmlid, self.version)
-        ira.create(self.cr, openerp.SUPERUSER_ID, dict(
+        try:
+            with self.cr.savepoint():
+                ira.invalidate_bundle(self.cr, openerp.SUPERUSER_ID, type=type, xmlid=self.xmlid)
+                ira.create(self.cr, openerp.SUPERUSER_ID, dict(
                     datas=content.encode('utf8').encode('base64'),
                     type='binary',
                     name=url,
                     url=url,
                 ), context=self.context)
+        except psycopg2.Error:
+            pass
 
     def css_message(self, message):
         # '\A' == css content carriage return
@@ -1549,22 +1554,27 @@ class PreprocessedCSS(StylesheetAsset):
 
     def to_html(self):
         if self.url:
-            ira = self.registry['ir.attachment']
-            url = self.html_url % self.url
-            domain = [('type', '=', 'binary'), ('url', '=', url)]
-            ira_id = ira.search(self.cr, openerp.SUPERUSER_ID, domain, context=self.context)
-            datas = self.content.encode('utf8').encode('base64')
-            if ira_id:
-                # TODO: update only if needed
-                ira.write(self.cr, openerp.SUPERUSER_ID, ira_id, {'datas': datas}, context=self.context)
-            else:
-                ira.create(self.cr, openerp.SUPERUSER_ID, dict(
-                    datas=datas,
-                    mimetype='text/css',
-                    type='binary',
-                    name=url,
-                    url=url,
-                ), context=self.context)
+            try:
+                ira = self.registry['ir.attachment']
+                url = self.html_url % self.url
+                domain = [('type', '=', 'binary'), ('url', '=', url)]
+                with self.cr.savepoint():
+                    ira_id = ira.search(self.cr, openerp.SUPERUSER_ID, domain, context=self.context)
+                    datas = self.content.encode('utf8').encode('base64')
+                    if ira_id:
+                        # TODO: update only if needed
+                        ira.write(self.cr, openerp.SUPERUSER_ID, ira_id, {'datas': datas},
+                                  context=self.context)
+                    else:
+                        ira.create(self.cr, openerp.SUPERUSER_ID, dict(
+                            datas=datas,
+                            mimetype='text/css',
+                            type='binary',
+                            name=url,
+                            url=url,
+                        ), context=self.context)
+            except psycopg2.Error:
+                pass
         return super(PreprocessedCSS, self).to_html()
 
     def get_source(self):

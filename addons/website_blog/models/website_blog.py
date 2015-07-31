@@ -104,7 +104,7 @@ class BlogPost(osv.Model):
         'website_message_ids': fields.one2many(
             'mail.message', 'res_id',
             domain=lambda self: [
-                '&', '&', ('model', '=', self._name), ('type', '=', 'comment'), ('path', '=', False)
+                '&', '&', ('model', '=', self._name), ('message_type', '=', 'comment'), ('path', '=', False)
             ],
             string='Website Messages',
             help="Website communication history",
@@ -219,8 +219,7 @@ class BlogPost(osv.Model):
                         'blog_slug': slug(post.blog_id),
                         'post_slug': slug(post),
                     },
-                    subtype='website_blog.mt_blog_blog_published',
-                    context=context)
+                    subtype='website_blog.mt_blog_blog_published')
             return True
         return False
 

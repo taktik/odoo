@@ -5,10 +5,11 @@ var ActionManager = require('web.ActionManager');
 var core = require('web.core');
 var crash_manager = require('web.crash_manager');
 var data = require('web.data');
+var framework = require('web.framework');
 var Loading = require('web.Loading');
 var Menu = require('web.Menu');
-var Model = require('web.Model');
-var Notification = require('web.Notification');
+var Model = require('web.DataModel');
+var NotificationManager = require('web.notification').NotificationManager;
 var session = require('web.session');
 var SystrayMenu = require('web.SystrayMenu');
 var UserMenu = require('web.UserMenu');
@@ -18,11 +19,22 @@ var Widget = require('web.Widget');
 var QWeb = core.qweb;
 var _t = core._t;
 
-
 var WebClient = Widget.extend({
     events: {
         'click .oe_logo_edit_admin': 'logo_edit',
         'click .oe_logo img': 'on_logo_click',
+    },
+    custom_events: {
+        'notification': function (e) {
+            if(this.notification_manager) {
+                this.notification_manager.notify(e.data.title, e.data.message, e.data.sticky);
+            }
+        },
+        'warning': function (e) {
+            if(this.notification_manager) {
+                this.notification_manager.warn(e.data.title, e.data.message, e.data.sticky);
+            }
+        },
     },
 
     init: function(parent, client_options) {
@@ -46,6 +58,7 @@ var WebClient = Widget.extend({
             this.toggle_bars.apply(this, arguments);
         });
 
+        document.body.classList.add('o_web_client');
         return session.session_bind(this.origin).then(function() {
             self.bind_events();
             return self.show_common();
@@ -97,31 +110,28 @@ var WebClient = Widget.extend({
             this.set_content_full_screen(full_screen);
         });
     },
-    on_logo_click: function(ev){
-        if (!this.has_uncommitted_changes()) {
-            return;
-        } else {
-            ev.preventDefault();
-        }
+    on_logo_click: function(ev) {
+        ev.preventDefault();
+        return this.clear_uncommitted_changes().then(function() {
+            framework.redirect("/web" + (core.debug ? "?debug" : ""));
+        });
     },
     show_common: function() {
         var self = this;
         session.on('error', crash_manager, crash_manager.rpc_error);
-        self.notification = new Notification(this);
-        self.notification.appendTo(self.$('.openerp'));
+        self.notification_manager = new NotificationManager(this);
+        self.notification_manager.appendTo(self.$('.openerp'));
         self.loading = new Loading(self);
         self.loading.appendTo(self.$('.openerp_webclient_container'));
         self.action_manager = new ActionManager(self);
         self.action_manager.replace(self.$('.oe_application'));
 
-        core.bus.on('display_notification_warning', this, function (title, message) {
-            self.notification.warn(title, message);
-        });
-        window.onerror = function (message, file, line) {
+        window.onerror = function (message, file, line, col, error) {
+            var traceback = error ? error.stack : '';
             crash_manager.show_error({
                 type: _t("Client Error"),
                 message: message,
-                data: {debug: file + ':' + line}
+                data: {debug: file + ':' + line + "\n" + _t('Traceback:') + "\n" + traceback}
             });
         };
 
@@ -129,10 +139,12 @@ var WebClient = Widget.extend({
     toggle_bars: function(value) {
         this.$('tr:has(td.navbar),.oe_leftbar').toggle(value);
     },
-    has_uncommitted_changes: function() {
-        var $e = $.Event('clear_uncommitted_changes');
-        core.bus.trigger('clear_uncommitted_changes', $e);
-        return $e.isDefaultPrevented();
+    clear_uncommitted_changes: function() {
+        var def = $.Deferred().resolve();
+        core.bus.trigger('clear_uncommitted_changes', function chain_callbacks(callback) {
+            def = def.then(callback);
+        });
+        return def;
     },
     /**
         Sets the first part of the title of the window, dedicated to the current action.
@@ -191,7 +203,6 @@ var WebClient = Widget.extend({
 
         self.bind_hashchange();
         self.set_title();
-        self.check_timezone();
         if (self.client_options.action_post_login) {
             self.action_manager.do_action(self.client_options.action_post_login);
             delete(self.client_options.action_post_login);
@@ -226,35 +237,6 @@ var WebClient = Widget.extend({
         });
         return false;
     },
-    check_timezone: function() {
-        var self = this;
-        return self.alive(new Model('res.users').call('read', [[session.uid], ['tz_offset']])).then(function(result) {
-            var user_offset = result[0]['tz_offset'];
-            var offset = -(new Date().getTimezoneOffset());
-            // _.str.sprintf()'s zero front padding is buggy with signed decimals, so doing it manually
-            var browser_offset = (offset < 0) ? "-" : "+";
-            browser_offset += _.str.sprintf("%02d", Math.abs(offset / 60));
-            browser_offset += _.str.sprintf("%02d", Math.abs(offset % 60));
-            if (browser_offset !== user_offset) {
-                var $icon = $(QWeb.render('WebClient.timezone_systray'));
-                $icon.on('click', function() {
-                    var notification = self.do_warn(_t("Timezone Mismatch"), QWeb.render('WebClient.timezone_notification', {
-                        user_timezone: session.user_context.tz || 'UTC',
-                        user_offset: user_offset,
-                        browser_offset: browser_offset,
-                    }), true);
-                    notification.element.find('.oe_webclient_timezone_notification').on('click', function() {
-                        notification.close();
-                    }).find('a').on('click', function() {
-                        notification.close();
-                        self.user_menu.on_menu_settings();
-                        return false;
-                    });
-                });
-                $icon.prependTo(window.$('.oe_systray'));
-            }
-        });
-    },
     /**
      * When do_action is performed on the WebClient, forward it to the main ActionManager
      * This allows to widgets that are not inside the ActionManager to perform do_action
@@ -274,19 +256,11 @@ var WebClient = Widget.extend({
             session.load_modules(true).then(
                 self.menu.proxy('do_reload')); });
     },
-    do_notify: function() {
-        var n = this.notification;
-        return n.notify.apply(n, arguments);
-    },
-    do_warn: function() {
-        var n = this.notification;
-        return n.warn.apply(n, arguments);
-    },
     on_logout: function() {
         var self = this;
-        if (!this.has_uncommitted_changes()) {
+        this.clear_uncommitted_changes().then(function() {
             self.action_manager.do_action('logout');
-        }
+        });
     },
     bind_hashchange: function() {
         var self = this;

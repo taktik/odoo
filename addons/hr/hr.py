@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-Today OpenERP S.A. (<http://openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
 
@@ -53,7 +35,7 @@ class hr_employee_category(osv.Model):
     _columns = {
         'name': fields.char("Employee Tag", required=True),
         'complete_name': fields.function(_name_get_fnc, type="char", string='Name'),
-        'parent_id': fields.many2one('hr.employee.category', 'Parent Employee Tag', select=True),
+        'parent_id': fields.many2one('hr.employee.category', 'Parent Category', select=True),
         'child_ids': fields.one2many('hr.employee.category', 'parent_id', 'Child Categories'),
         'employee_ids': fields.many2many('hr.employee', 'employee_category_rel', 'category_id', 'emp_id', 'Employees'),
     }
@@ -183,7 +165,6 @@ class hr_employee(osv.osv):
         'ssnid': fields.char('SSN No', help='Social Security Number'),
         'sinid': fields.char('SIN No', help="Social Insurance Number"),
         'identification_id': fields.char('Identification No'),
-        'otherid': fields.char('Other Id'),
         'gender': fields.selection([('male', 'Male'), ('female', 'Female'), ('other', 'Other')], 'Gender'),
         'marital': fields.selection([('single', 'Single'), ('married', 'Married'), ('widower', 'Widower'), ('divorced', 'Divorced')], 'Marital Status'),
         'department_id': fields.many2one('hr.department', 'Department'),
@@ -266,10 +247,14 @@ class hr_employee(osv.osv):
         return {'value': value}
 
     def onchange_user(self, cr, uid, ids, user_id, context=None):
-        work_email = False
         if user_id:
-            work_email = self.pool.get('res.users').browse(cr, uid, user_id, context=context).email
-        return {'value': {'work_email': work_email}}
+            user = self.pool['res.users'].browse(cr, uid, user_id, context=context)
+            values = {
+                'name': user.name,
+                'work_email': user.email,
+                'image': user.image,
+            }
+            return {'value': values}
 
     def action_follow(self, cr, uid, ids, context=None):
         """ Wrapper because message_subscribe_users take a user_ids=None
@@ -280,15 +265,6 @@ class hr_employee(osv.osv):
         """ Wrapper because message_unsubscribe_users take a user_ids=None
             that receive the context without the wrapper. """
         return self.message_unsubscribe_users(cr, uid, ids, context=context)
-
-    def get_suggested_thread(self, cr, uid, removed_suggested_threads=None, context=None):
-        """Show the suggestion of employees if display_employees_suggestions if the
-        user perference allows it. """
-        user = self.pool.get('res.users').browse(cr, uid, uid, context)
-        if not user.display_employees_suggestions:
-            return []
-        else:
-            return super(hr_employee, self).get_suggested_thread(cr, uid, removed_suggested_threads, context)
 
     def _message_get_auto_subscribe_fields(self, cr, uid, updated_fields, auto_follow_fields=None, context=None):
         """ Overwrite of the original method to always follow user_id field,

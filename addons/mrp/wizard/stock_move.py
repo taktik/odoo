@@ -1,25 +1,8 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2010 Tiny SPRL (<http://tiny.be>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp.osv import fields, osv
+from openerp.tools import float_compare
 from openerp.tools.translate import _
 import openerp.addons.decimal_precision as dp
 
@@ -58,12 +41,26 @@ class stock_move_consume(osv.osv_memory):
             context = {}
         move_obj = self.pool.get('stock.move')
         uom_obj = self.pool.get('product.uom')
+        production_obj = self.pool.get('mrp.production')
         move_ids = context['active_ids']
+        move = move_obj.browse(cr, uid, move_ids[0], context=context)
+        production_id = move.raw_material_production_id.id
+        production = production_obj.browse(cr, uid, production_id, context=context)
+        precision = self.pool['decimal.precision'].precision_get(cr, uid, 'Product Unit of Measure')
+
         for data in self.browse(cr, uid, ids, context=context):
-            if move_ids and move_ids[0]:
-                move = move_obj.browse(cr, uid, move_ids[0], context=context)
             qty = uom_obj._compute_qty(cr, uid, data['product_uom'].id, data.product_qty, data.product_id.uom_id.id)
-            move_obj.action_consume(cr, uid, move_ids,
-                             qty, data.location_id.id, restrict_lot_id=data.restrict_lot_id.id,
-                             context=context)
+            remaining_qty = move.product_qty - qty
+            #check for product quantity is less than previously planned
+            if float_compare(remaining_qty, 0, precision_digits=precision) >= 0:
+                move_obj.action_consume(cr, uid, move_ids, qty, data.location_id.id, restrict_lot_id=data.restrict_lot_id.id, context=context)
+            else:
+                consumed_qty = min(move.product_qty, qty)
+                new_moves = move_obj.action_consume(cr, uid, move_ids, consumed_qty, data.location_id.id, restrict_lot_id=data.restrict_lot_id.id, context=context)
+                #consumed more in wizard than previously planned
+                extra_more_qty = qty - consumed_qty
+                #create new line for a remaining qty of the product
+                extra_move_id = production_obj._make_consume_line_from_data(cr, uid, production, data.product_id, data.product_id.uom_id.id, extra_more_qty, False, 0, context=context)
+                move_obj.write(cr, uid, [extra_move_id], {'restrict_lot_id': data.restrict_lot_id.id}, context=context)
+                move_obj.action_done(cr, uid, [extra_move_id], context=context)
         return {'type': 'ir.actions.act_window_close'}

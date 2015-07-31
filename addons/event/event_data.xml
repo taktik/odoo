@@ -21,8 +21,8 @@
         </record>
 
         <!-- notify all employees of module installation -->
-        <function model="mail.group" name="message_post">
-            <value eval="[ref('mail.group_all_employees')]"/>
+        <function model="mail.channel" name="message_post">
+            <value eval="[ref('mail.channel_all_employees')]"/>
             <value>From the top menu Events, you can organize events, manage registrations, automate communication around your event and sell events through your quotations.</value>
             <value>Module Events has been installed</value>
         </function>
@@ -39,7 +39,7 @@
             <field name="interval_type">hours</field>
             <field name="numbercall">-1</field>
             <field name="doall" eval="False" />
-            <field eval="'()'" name="args"/>
+            <field eval="'(True,)'" name="args"/>
             <field name="model">event.mail</field>
             <field name="function">run</field>
         </record>

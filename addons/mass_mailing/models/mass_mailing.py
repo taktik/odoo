@@ -3,7 +3,6 @@
 from datetime import datetime
 from dateutil import relativedelta
 import random
-import re
 
 from openerp import tools
 from openerp import models, api, _
@@ -14,8 +13,6 @@ from openerp.tools.safe_eval import safe_eval as eval
 from openerp.tools import ustr
 from openerp.osv import osv, fields
 
-URL_REGEX = r'(\bhref=[\'"]([^\'"]+)[\'"])'
-
 
 class MassMailingTag(osv.Model):
     """Model of categories of mass mailing, i.e. marketing, newsletter, ... """
@@ -25,6 +22,46 @@ class MassMailingTag(osv.Model):
 
     _columns = {
         'name': fields.char('Name', required=True),
+    }
+
+
+class MassMailingList(osv.Model):
+    """Model of a contact list. """
+    _name = 'mail.mass_mailing.list'
+    _order = 'name'
+    _description = 'Mailing List'
+
+    def _get_contact_nbr(self, cr, uid, ids, name, arg, context=None):
+        result = dict.fromkeys(ids, 0)
+        Contacts = self.pool.get('mail.mass_mailing.contact')
+        for group in Contacts.read_group(cr, uid, [('list_id', 'in', ids), ('opt_out', '!=', True)], ['list_id'], ['list_id'], context=context):
+            result[group['list_id'][0]] = group['list_id_count']
+        return result
+
+    _columns = {
+        'name': fields.char('Mailing List', required=True),
+        'create_date': fields.datetime('Creation Date'),
+        'contact_nbr': fields.function(
+            _get_contact_nbr, type='integer',
+            string='Number of Contacts',
+        ),
+        'popup_content': fields.html("Website Popup Content", translate=True, required=True, sanitize=False),
+        'popup_redirect_url': fields.char("Website Popup Redirect URL"),
+    }
+
+    def _get_default_popup_content(self, cr, uid, context=None):
+        return """<div class="o_popup_modal_header text-center">
+    <h3 class="o_popup_modal_title mt8">Odoo Presents</h3>
+</div>
+<div class="o_popup_message">
+    <font>7</font>
+    <strong>Business Hacks</strong>
+    <span> to<br/>boost your marketing</span>
+</div>
+<p class="o_message_paragraph">Join our Marketing newsletter and get <strong>this white paper instantly</strong></p>"""
+
+    _defaults = {
+        'popup_content': _get_default_popup_content,
     }
 
 
@@ -108,46 +145,6 @@ class MassMailingContact(osv.Model):
             self.write(cr, uid, [obj.id], {'message_bounce': obj.message_bounce + 1}, context=context)
 
 
-class MassMailingList(osv.Model):
-    """Model of a contact list. """
-    _name = 'mail.mass_mailing.list'
-    _order = 'name'
-    _description = 'Mailing List'
-
-    def _get_contact_nbr(self, cr, uid, ids, name, arg, context=None):
-        result = dict.fromkeys(ids, 0)
-        Contacts = self.pool.get('mail.mass_mailing.contact')
-        for group in Contacts.read_group(cr, uid, [('list_id', 'in', ids), ('opt_out', '!=', True)], ['list_id'], ['list_id'], context=context):
-            result[group['list_id'][0]] = group['list_id_count']
-        return result
-
-    _columns = {
-        'name': fields.char('Mailing List', required=True),
-        'create_date': fields.datetime('Creation Date'),
-        'contact_nbr': fields.function(
-            _get_contact_nbr, type='integer',
-            string='Number of Contacts',
-        ),
-        'popup_content': fields.html("Website Popup Content", translate=True, required=True, sanitize=False),
-        'popup_redirect_url': fields.char("Website Popup Redirect URL"),
-    }
-
-    def _get_default_popup_content(self, cr, uid, context=None):
-        return """<div class="o_popup_modal_header text-center">
-    <h3 class="o_popup_modal_title mt8">Odoo Presents</h3>
-</div>
-<div class="o_popup_message">
-    <font>7</font>
-    <strong>Business Hacks</strong>
-    <span> to<br/>boost your marketing</span>
-</div>
-<p class="o_message_paragraph">Join our Marketing newsletter and get <strong>this white paper instantly</strong></p>"""
-
-    _defaults = {
-        'popup_content': _get_default_popup_content,
-    }
-
-
 class MassMailingStage(osv.Model):
     """Stage for mass mailing campaigns. """
     _name = 'mail.mass_mailing.stage'
@@ -211,7 +208,7 @@ class MassMailingCampaign(osv.Model):
         cr.execute("""
             SELECT COUNT(DISTINCT(stats.id)) AS nb_mails, COUNT(DISTINCT(clicks.mail_stat_id)) AS nb_clicks, stats.mass_mailing_campaign_id AS id 
             FROM mail_mail_statistics AS stats
-            LEFT OUTER JOIN website_links_click AS clicks ON clicks.mail_stat_id = stats.id
+            LEFT OUTER JOIN link_tracker_click AS clicks ON clicks.mail_stat_id = stats.id
             WHERE stats.mass_mailing_campaign_id IN %s
             GROUP BY stats.mass_mailing_campaign_id
         """, (tuple(ids), ))
@@ -391,35 +388,6 @@ class MassMailing(osv.Model):
 
     _inherit = ['utm.mixin']
 
-    def __get_bar_values(self, cr, uid, obj, domain, read_fields, value_field, groupby_field, date_begin, context=None):
-        """ Generic method to generate data for bar chart values using SparklineBarWidget.
-            This method performs obj.read_group(cr, uid, domain, read_fields, groupby_field).
-
-            :param obj: the target model (i.e. crm_lead)
-            :param domain: the domain applied to the read_group
-            :param list read_fields: the list of fields to read in the read_group
-            :param str value_field: the field used to compute the value of the bar slice
-            :param str groupby_field: the fields used to group
-
-            :return list section_result: a list of dicts: [
-                                                {   'value': (int) bar_column_value,
-                                                    'tootip': (str) bar_column_tooltip,
-                                                }
-                                            ]
-        """
-        date_begin = date_begin.date()
-        section_result = [{'value': 0,
-                           'tooltip': ustr((date_begin + relativedelta.relativedelta(days=i)).strftime('%d %B %Y')),
-                           } for i in range(0, self._period_number)]
-        group_obj = obj.read_group(cr, uid, domain, read_fields, groupby_field, context=context)
-        field = obj._fields.get(groupby_field.split(':')[0])
-        pattern = tools.DEFAULT_SERVER_DATE_FORMAT if field.type == 'date' else tools.DEFAULT_SERVER_DATETIME_FORMAT
-        for group in group_obj:
-            group_begin_date = datetime.strptime(group['__domain'][0][2], pattern).date()
-            timedelta = relativedelta.relativedelta(group_begin_date, date_begin)
-            section_result[timedelta.days] = {'value': group.get(value_field, 0), 'tooltip': group.get(groupby_field)}
-        return section_result
-
     def _get_statistics(self, cr, uid, ids, name, arg, context=None):
         """ Compute statistics of the mass mailing """
         results = {}
@@ -468,7 +436,7 @@ class MassMailing(osv.Model):
         cr.execute("""
             SELECT COUNT(DISTINCT(stats.id)) AS nb_mails, COUNT(DISTINCT(clicks.mail_stat_id)) AS nb_clicks, stats.mass_mailing_id AS id 
             FROM mail_mail_statistics AS stats
-            LEFT OUTER JOIN website_links_click AS clicks ON clicks.mail_stat_id = stats.id
+            LEFT OUTER JOIN link_tracker_click AS clicks ON clicks.mail_stat_id = stats.id
             WHERE stats.mass_mailing_id IN %s
             GROUP BY stats.mass_mailing_id
         """, (tuple(ids), ))
@@ -511,7 +479,7 @@ class MassMailing(osv.Model):
         'create_date': fields.datetime('Creation Date'),
         'sent_date': fields.datetime('Sent Date', oldname='date', copy=False),
         'schedule_date': fields.datetime('Schedule in the Future'),
-        'body_html': fields.html('Body'),
+        'body_html': fields.html('Body', translate=True),
         'attachment_ids': fields.many2many(
             'ir.attachment', 'mass_mailing_ir_attachments_rel',
             'mass_mailing_id', 'attachment_id', 'Attachments'
@@ -615,7 +583,7 @@ class MassMailing(osv.Model):
 
     def mass_mailing_statistics_action(self, cr, uid, ids, context=None):
         res = self.pool['ir.actions.act_window'].for_xml_id(cr, uid, 'mass_mailing', 'action_view_mass_mailing_statistics', context=context)
-        link_click_ids = self.pool['website.links.click'].search(cr, uid, [('mass_mailing_id', 'in', ids)], context=context)
+        link_click_ids = self.pool['link.tracker.click'].search(cr, uid, [('mass_mailing_id', 'in', ids)], context=context)
         res['domain'] = [('id', 'in', link_click_ids)]
         return res
 
@@ -828,7 +796,7 @@ class MassMailing(osv.Model):
             if utm_mixin.medium_id:
                 vals['medium_id'] = utm_mixin.medium_id.id
 
-            res[mass_mailing.id] = self.pool['website.links'].convert_links(cr, uid, html, vals, blacklist=['/unsubscribe_from_list'], context=context)
+            res[mass_mailing.id] = self.pool['link.tracker'].convert_links(cr, uid, html, vals, blacklist=['/unsubscribe_from_list'], context=context)
 
         return res
 
@@ -859,25 +827,3 @@ class MassMailing(osv.Model):
                 self.send_mail(cr, uid, [mass_mailing_id], context=context)
             else:
                 self.write(cr, uid, [mass_mailing_id], {'state': 'done'}, context=context)
-
-
-class MailMail(models.Model):
-    _inherit = ['mail.mail']
-
-    @api.model
-    def send_get_mail_body(self, mail, partner=None):
-        """Override to add Statistic_id in shorted urls """
-
-        links_blacklist = ['/unsubscribe_from_list']
-
-        if mail.mailing_id and mail.body_html and mail.statistics_ids:
-            for match in re.findall(URL_REGEX, mail.body_html):
-
-                href = match[0]
-                url = match[1]
-                
-                if not [s for s in links_blacklist if s in href]:
-                    new_href = href.replace(url, url + '/m/' + str(mail.statistics_ids[0].id))
-                    mail.body_html = mail.body_html.replace(href, new_href)
-
-        return super(MailMail, self).send_get_mail_body(mail, partner=partner)

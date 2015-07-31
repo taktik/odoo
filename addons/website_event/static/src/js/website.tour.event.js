@@ -3,12 +3,13 @@ odoo.define('website_event.tour', function (require) {
 
 var core = require('web.core');
 var Tour = require('web.Tour');
+var base = require('web_editor.base');
 var website = require('website.website');
 
 
 var _t = core._t;
 
-website.ready().done(function () {
+base.ready().done(function () {
     Tour.register({
         id:   'event',
         name: _t("Create an event"),
@@ -41,7 +42,7 @@ website.ready().done(function () {
             },
             {
                 waitNot:   '.modal-dialog #editor_new_event input[type=text]:not([value!=""])',
-                element:   '.modal-dialog button.btn-primary',
+                element:   '.modal-dialog button.btn-primary.btn-continue',
                 placement: 'right',
                 title:     _t("Create Event"),
                 content:   _t("Click <em>Continue</em> to create the event."),

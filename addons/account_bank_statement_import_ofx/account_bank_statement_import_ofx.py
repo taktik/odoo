@@ -3,59 +3,50 @@
 import logging
 import StringIO
 
-from openerp.osv import osv
-from openerp.tools.translate import _
+from openerp import api, models, _
 from openerp.exceptions import UserError
+from ofxparse import OfxParser
+from ofxparse.ofxparse import OfxParserException
 
 _logger = logging.getLogger(__name__)
 
-try:
-    from ofxparse import OfxParser as ofxparser
-except ImportError:
-    _logger.warn("ofxparse not found, OFX parsing disabled.")
-    ofxparser = None
 
-class account_bank_statement_import(osv.TransientModel):
+class AccountBankStatementImport(models.TransientModel):
     _inherit = 'account.bank.statement.import'
 
-    def _check_ofx(self, cr, uid, file, context=None):
-        if ofxparser is None:
-            return False
+    def _check_ofx(self, file):
         try:
-            ofx = ofxparser.parse(file)
-        except:
+            ofx = OfxParser.parse(file)
+        except (TypeError, AttributeError, OfxParserException):
             return False
         return ofx
 
-    def _parse_file(self, cr, uid, data_file, context=None):
-        ofx = self._check_ofx(cr, uid, StringIO.StringIO(data_file), context=context)
+    def _parse_file(self, data_file):
+        ofx = self._check_ofx(StringIO.StringIO(data_file))
         if not ofx:
-            return super(account_bank_statement_import, self)._parse_file(cr, uid, data_file, context=context)
+            return super(AccountBankStatementImport, self)._parse_file(data_file)
 
         transactions = []
         total_amt = 0.00
-        try:
-            for transaction in ofx.account.statement.transactions:
-                # Since ofxparse doesn't provide account numbers, we'll have to find res.partner and res.partner.bank here
-                # (normal behavious is to provide 'account_number', which the generic module uses to find partner/bank)
-                bank_account_id = partner_id = False
-                ids = self.pool.get('res.partner.bank').search(cr, uid, [('owner_name', '=', transaction.payee)], context=context)
-                if ids:
-                    bank_account_id = bank_account_id = ids[0]
-                    partner_id = self.pool.get('res.partner.bank').browse(cr, uid, bank_account_id, context=context).partner_id.id
-                vals_line = {
-                    'date': transaction.date,
-                    'name': transaction.payee + (transaction.memo and ': ' + transaction.memo or ''),
-                    'ref': transaction.id,
-                    'amount': transaction.amount,
-                    'unique_import_id': transaction.id,
-                    'bank_account_id': bank_account_id,
-                    'partner_id': partner_id,
-                }
-                total_amt += float(transaction.amount)
-                transactions.append(vals_line)
-        except Exception, e:
-            raise UserError(_("The following problem occurred during import. The file might not be valid.\n\n %s" % e.message))
+        for transaction in ofx.account.statement.transactions:
+            # Since ofxparse doesn't provide account numbers, we'll have to find res.partner and res.partner.bank here
+            # (normal behavious is to provide 'account_number', which the generic module uses to find partner/bank)
+            bank_account_id = partner_id = False
+            partner_bank = self.env['res.partner.bank'].search([('owner_name', '=', transaction.payee)], limit=1)
+            if partner_bank:
+                bank_account_id = partner_bank.id
+                partner_id = partner_bank.partner_id.id
+            vals_line = {
+                'date': transaction.date,
+                'name': transaction.payee + (transaction.memo and ': ' + transaction.memo or ''),
+                'ref': transaction.id,
+                'amount': transaction.amount,
+                'unique_import_id': transaction.id,
+                'bank_account_id': bank_account_id,
+                'partner_id': partner_id,
+            }
+            total_amt += float(transaction.amount)
+            transactions.append(vals_line)
 
         vals_bank_statement = {
             'name': ofx.account.routing_number,

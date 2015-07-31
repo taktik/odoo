@@ -8,7 +8,7 @@ var core = require('web.core');
 var crash_manager = require('web.crash_manager');
 var formats = require('web.formats');
 var framework = require('web.framework');
-var Model = require('web.Model');
+var Model = require('web.DataModel');
 var session = require('web.session');
 var Sidebar = require('web.Sidebar');
 var utils = require('web.utils');
@@ -60,6 +60,8 @@ var PivotView = View.extend({
 
         this.last_header_selected = null;
         this.sorted_column = {};
+
+        this.numbering = {};
     },
     willStart: function () {
         var self = this;
@@ -207,7 +209,6 @@ var PivotView = View.extend({
         this.do_push_state({});
         this.data_loaded.done(function () {
             self.display_table(); 
-            self.$el.show();
         });
         return this._super();
     },
@@ -490,12 +491,21 @@ var PivotView = View.extend({
     },
     sanitize_value: function (value, field) {
         if (value === false) return _t("Undefined");
-        if (value instanceof Array) return value[1];
+        if (value instanceof Array) return this.get_numbered_value(value, field);
         if (field && this.fields[field] && (this.fields[field].type === 'selection')) {
             var selected = _.where(this.fields[field].selection, {0: value})[0];
             return selected ? selected[1] : value;
         }
         return value;
+    },
+    get_numbered_value: function(value, field) {
+        var id= value[0];
+        var name= value[1]
+        this.numbering[field] = this.numbering[field] || {};
+        this.numbering[field][name] = this.numbering[field][name] || {};
+        var numbers = this.numbering[field][name];
+        numbers[id] = numbers[id] || _.size(numbers) + 1;
+        return name + (numbers[id] > 1 ? "  (" + numbers[id] + ")" : "");
     },
     make_header: function (data_pt, root, i, j, parent_header) {
         var attrs = data_pt.attributes,

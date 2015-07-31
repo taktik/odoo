@@ -5,7 +5,9 @@ var ajax = require('web.ajax');
 var Widget = require('web.Widget');
 var website = require('website.website');
 
-website.if_dom_contains('div.o_website_quote', function () {
+if(!$('.o_website_quote').length) {
+    return $.Deferred().reject("DOM doesn't contain '.o_website_quote'");
+}
 
     // Add to SO button
     var UpdateLineButton = Widget.extend({
@@ -58,34 +60,38 @@ website.if_dom_contains('div.o_website_quote', function () {
             this.$("#signature").jSignature('reset');
         },
         submitForm: function(ev){
-            ev.preventDefault();
             // extract data
             var self = this;
             var href = self.$el.find('form').attr("action");
-            var order_id = href.match(/accept\/([0-9]+)/);
+            var action = href.match(/quote\/([a-z]+)/);
+            var order_id = href.match(/quote\/[a-z]+\/([0-9]+)/);
             var token = href.match(/token=(.*)/);
             if (token){
                 token = token[1];
             }
-            // process : display errors, or submit
-            var signer_name = self.$("#name").val();
-            var signature = self.$("#signature").jSignature("getData",'image');
-            var is_empty = signature ? this.empty_sign[1] == signature[1] : false;
-            self.$('#signer').toggleClass('has-error', !signer_name);
-            self.$('#drawsign').toggleClass('panel-danger', is_empty).toggleClass('panel-default', !is_empty);
-            if (is_empty || ! signer_name){
+
+            if (action[1]=='accept') {
+                ev.preventDefault();
+                // process : display errors, or submit
+                var signer_name = self.$("#name").val();
+                var signature = self.$("#signature").jSignature("getData",'image');
+                var is_empty = signature ? this.empty_sign[1] == signature[1] : false;
+                self.$('#signer').toggleClass('has-error', !signer_name);
+                self.$('#drawsign').toggleClass('panel-danger', is_empty).toggleClass('panel-default', !is_empty);
+                if (is_empty || ! signer_name){
+                    return false;
+                }
+                ajax.jsonRpc("/quote/"+action[1], 'call', {
+                    'order_id': parseInt(order_id[1]),
+                    'token': token,
+                    'signer': signer_name,
+                    'sign': signature?JSON.stringify(signature[1]):false,
+                }).then(function (data) {
+                    self.$el.modal('hide');
+                    window.location.href = '/quote/'+order_id[1]+'/'+token+'?message=3';
+                });
                 return false;
             }
-            ajax.jsonRpc("/quote/accept", 'call', {
-                'order_id': parseInt(order_id[1]),
-                'token': token,
-                'signer': signer_name,
-                'sign': signature?JSON.stringify(signature[1]):false,
-            }).then(function (data) {
-                self.$el.modal('hide');
-                window.location.href = '/quote/'+order_id[1]+'/'+token+'?message=3';
-            });
-            return false;
         },
     });
 
@@ -155,4 +161,40 @@ website.if_dom_contains('div.o_website_quote', function () {
 
 });
 
+odoo.define('website_quote.payment_method', function (require) {
+'use strict';
+
+    require('website.website');
+    var ajax = require('web.ajax');
+
+    if(!$('#payment_method').length) {
+        return $.Deferred().reject("DOM doesn't contain '#payment_method'");
+    }
+
+    // dbo note: website_sale code for payment
+    // if we standardize payment somehow, this should disappear
+    // When choosing an acquirer, display its Pay Now button
+    var $payment = $("#payment_method");
+    $payment.on("click", "input[name='acquirer']", function (ev) {
+            var payment_id = $(ev.currentTarget).val();
+            $("div.oe_quote_acquirer_button[data-id]", $payment).addClass("hidden");
+            $("div.oe_quote_acquirer_button[data-id='"+payment_id+"']", $payment).removeClass("hidden");
+        })
+        .find("input[name='acquirer']:checked").click();
+
+    // When clicking on payment button: create the tx using json then continue to the acquirer
+    $('.oe_quote_acquirer_button').on("click", 'button[type="submit"],button[name="submit"]', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var $form = $(ev.currentTarget).parents('form');
+      var acquirer_id = $(ev.currentTarget).parents('.oe_quote_acquirer_button').first().data('id');
+      if (! acquirer_id) {
+        return false;
+      }
+      var href = $(location).attr("href");
+      var order_id = href.match(/quote\/([0-9]+)/)[1];
+      ajax.jsonRpc('/quote/' + order_id +'/transaction/' + acquirer_id, 'call', {}).then(function (data) {
+        $form.submit();
+      });
+   });
 });

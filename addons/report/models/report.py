@@ -1,28 +1,10 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2014-Today OpenERP SA (<http://www.openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp import api
 from openerp import SUPERUSER_ID
 from openerp.exceptions import AccessError
-from openerp.osv import osv
+from openerp.osv import osv, fields
 from openerp.tools import config
 from openerp.tools.misc import find_in_path
 from openerp.tools.translate import _
@@ -88,30 +70,6 @@ class Report(osv.Model):
     # Extension of ir_ui_view.render with arguments frequently used in reports
     #--------------------------------------------------------------------------
 
-    def translate_doc(self, cr, uid, doc_id, model, lang_field, template, values, context=None):
-        """Helper used when a report should be translated into a specific lang.
-
-        <t t-foreach="doc_ids" t-as="doc_id">
-        <t t-raw="translate_doc(doc_id, doc_model, 'partner_id.lang', account.report_invoice_document')"/>
-        </t>
-
-        :param doc_id: id of the record to translate
-        :param model: model of the record to translate
-        :param lang_field': field of the record containing the lang
-        :param template: name of the template to translate into the lang_field
-        """
-        ctx = context.copy()
-        doc = self.pool[model].browse(cr, uid, doc_id, context=ctx)
-        qcontext = values.copy()
-        # Do not force-translate if we chose to display the report in a specific lang
-        if ctx.get('translatable') is True:
-            qcontext['o'] = doc
-        else:
-            # Reach the lang we want to translate the doc into
-            ctx['lang'] = eval('doc.%s' % lang_field, {'doc': doc})
-            qcontext['o'] = self.pool[model].browse(cr, uid, doc_id, context=ctx)
-        return self.pool['ir.ui.view'].render(cr, uid, template, qcontext, context=ctx)
-
     def render(self, cr, uid, ids, template, values=None, context=None):
         """Allow to render a QWeb template python-side. This function returns the 'ir.ui.view'
         render but embellish it with some variables/methods used in reports.
@@ -129,18 +87,16 @@ class Report(osv.Model):
 
         view_obj = self.pool['ir.ui.view']
 
-        def translate_doc(doc_id, model, lang_field, template):
-            return self.translate_doc(cr, uid, doc_id, model, lang_field, template, values, context=context)
-
         user = self.pool['res.users'].browse(cr, uid, uid)
         website = None
         if request and hasattr(request, 'website'):
             if request.website is not None:
                 website = request.website
                 context = dict(context, translatable=context.get('lang') != request.website.default_lang_code)
+
         values.update(
             time=time,
-            translate_doc=translate_doc,
+            context_timestamp=lambda t: fields.datetime.context_timestamp(cr, uid, t, context),
             editable=True,
             user=user,
             res_company=user.company_id,
@@ -360,7 +316,7 @@ class Report(osv.Model):
     def _check_wkhtmltopdf(self):
         return wkhtmltopdf_state
 
-    def _run_wkhtmltopdf(self, cr, uid, headers, footers, bodies, landscape, paperformat, spec_paperformat_args=None, save_in_attachment=None):
+    def _run_wkhtmltopdf(self, cr, uid, headers, footers, bodies, landscape, paperformat, spec_paperformat_args=None, save_in_attachment={}):
         """Execute wkhtmltopdf as a subprocess in order to convert html given in input into a pdf
         document.
 
@@ -374,6 +330,8 @@ class Report(osv.Model):
         :returns: Content of the pdf as a string
         """
         command_args = []
+        if wkhtmltopdf_state == "ok":
+            command_args.extend(['--viewport-size', '1024x768'])
 
         # Passing the cookie to wkhtmltopdf in order to resolve internal links.
         try:
@@ -440,7 +398,6 @@ class Report(osv.Model):
             try:
                 wkhtmltopdf = [_get_wkhtmltopdf_bin()] + command_args + local_command_args
                 wkhtmltopdf += [content_file_path] + [pdfreport_path]
-
                 process = subprocess.Popen(wkhtmltopdf, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 out, err = process.communicate()
 

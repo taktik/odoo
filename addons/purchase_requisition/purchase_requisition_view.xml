@@ -39,11 +39,14 @@
                 <field name="state" widget="statusbar" statusbar_visible="draft,in_progress,open,done" statusbar_colors='{"in_progress":"blue"}'/>
             </header>
             <sheet>
-                <div class="oe_right oe_button_box" name="buttons">
+                <div class="oe_button_box" name="button_box">
                     <button name="open_product_line" type="object" string="Product Lines" class="oe_stat_button" icon="fa-list"
                         attrs="{'invisible': ['|', ('state', 'not in', ('open','done')), ('exclusive', '=', 'exclusive')]}" groups="purchase.group_advance_bidding"/>
                     <button name="open_rfq" type="object" string="RFQs/Bids" class="oe_stat_button" icon="fa-list-alt"
                         attrs="{'invisible': [('state', '=', 'draft')]}"/>
+                    <button name="%(action_purchase_requisition_partner)d" type="action"
+                        string="Request a Quotation" icon="gtk-execute"
+                        attrs="{'invisible': ['|', ('line_ids','=',[]),('state', 'in', ('draft' ,'open','done'))]}"/>
                 </div>
                 <div class="pull-left">
                     <label for="name" class="oe_edit_only oe_inline"/>
@@ -89,11 +92,6 @@
                                 </group>
                             </form>
                         </field>
-                        <div class="oe_right oe_button_box" style="margin-top: 10px">
-                            <button name="%(action_purchase_requisition_partner)d" type="action"
-                                string="Request a Quotation" icon="gtk-execute"
-                                attrs="{'invisible': ['|', ('line_ids','=',[]),('state', 'in', ('draft' ,'open','done'))]}"/>
-                        </div>
                         <separator string="Requests for Quotation"/>
                         <field name="purchase_ids" options="{'reload_on_button': true}">
                             <tree string="Purchase Order">
@@ -107,7 +105,7 @@
                                 <field name="state"/>
                                 <button name="purchase_cancel" states="draft,confirmed,wait_auth" string="Cancel Purchase Order" icon="gtk-cancel"/>
                                 <button name="purchase_confirm" states="draft" string="Confirm Purchase Order" icon="gtk-apply"/>
-                                <button name="purchase_approve" states="confirmed" string="Approved by Supplier" icon="gtk-ok"/>
+                                <button name="purchase_approve" states="confirmed" string="Approved by Vendor" icon="gtk-ok"/>
                                 <button name="wkf_send_rfq" states="draft" string="Send RFQ by Email" type="object" context="{'send_rfq':True}" icon="gtk-network"/>
                             </tree>
                         </field>
@@ -127,7 +125,7 @@
         <field name="name">purchase.requisition.tree</field>
         <field name="model">purchase.requisition</field>
         <field name="arch" type="xml">
-            <tree fonts="bold:message_unread==True" colors="grey:state == 'cancel';red:date_end and date_end&lt;current_date;black:date_end&gt;current_date;" string="Call for Tenders">
+            <tree decoration-bf="message_unread==True" decoration-muted="state == 'cancel'" decoration-danger="date_end and date_end&lt;current_date" string="Call for Tenders">
                 <field name="message_unread" invisible="1"/>
                 <field name="name"/>
                 <field name="ordering_date"/>
@@ -166,7 +164,7 @@
 
 
     <record model="ir.actions.act_window" id="action_purchase_requisition">
-        <field name="name">Calls for Tenders</field>
+        <field name="name">Purchase Tenders</field>
         <field name="type">ir.actions.act_window</field>
         <field name="res_model">purchase.requisition</field>
         <field name="view_type">form</field>
@@ -180,7 +178,7 @@
             A Call for Tenders is a procedure for generating competing offers from
             different bidders. In the call for tenders, you can record the
             products you need to buy and generate the creation of RfQs to
-            suppliers. Once the tenders have been registered, you can review and
+            vendors. Once the tenders have been registered, you can review and
             compare them and you can validate some and cancel others.
           </p>
         </field>
@@ -227,9 +225,9 @@
             <field name="model">purchase.order.line</field>
             <field eval="1" name="priority"/>
             <field name="arch" type="xml">
-                <tree string="Purchase Order Lines" create="false" colors="blue:state == 'confirmed';gray:state == 'cancel'">
+                <tree string="Purchase Order Lines" create="false" decoration-info="state == 'confirmed'" decoration-muted="state == 'cancel'">
                     <field name="name"/>
-                    <field name="partner_id" string="Supplier" />
+                    <field name="partner_id" string="Vendor"/>
                     <field name="product_id"/>
                     <field name="price_unit"/>
                     <field name="product_qty"/>

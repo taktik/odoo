@@ -3,18 +3,19 @@
     <data>
         <template id="assets_backend" name="mass_mailing assets" inherit_id="web.assets_backend">
             <xpath expr="." position="inside">
-                <link rel="stylesheet" href="/mass_mailing/static/src/css/mass_mailing.css"/>
+                <link rel="stylesheet" href="/mass_mailing/static/src/less/mass_mailing.less"/>
                 <link rel="stylesheet" href="/mass_mailing/static/src/css/email_template.css"/>
                 <script type="text/javascript" src="/mass_mailing/static/src/js/mass_mailing.js"></script>
             </xpath>
         </template>
 
         <!-- Marketing / Mass Mailing -->
-        <menuitem name="Mass Mailing" id="mass_mailing_campaign"
-            parent="base.marketing_menu" sequence="1" groups="marketing.group_marketing_user"/>
+        <menuitem name="Mass Mailing" id="mass_mailing_menu_root" sequence="60" web_icon="mass_mailing,static/description/icon.png"/>
+        <menuitem name="Mailings" id="mass_mailing_menu"
+            parent="mass_mailing_menu_root" sequence="1" groups="marketing.group_marketing_user"/>
         <!-- Marketing / Configuration -->
-        <menuitem name="Configuration" id="marketing_configuration"
-            parent="base.marketing_menu" sequence="99"/>
+        <menuitem name="Configuration" id="mass_mailing_configuration"
+            parent="mass_mailing_menu_root" sequence="100" groups="base.group_configuration"/>
 
         <!--  MAIL MAIL STATISTICS !-->
         <record model="ir.ui.view" id="view_mail_mail_statistics_search">
@@ -25,17 +26,16 @@
                     <field name="mail_mail_id_int"/>
                     <field name="message_id"/>
                     <field name="mass_mailing_id"/>
-                    <filter help="Sent" domain="[('sent', '!=', False)]"/>
-                    <filter help="Opened" domain="[('opened', '!=', False)]"/>
-                    <filter help="Replied" domain="[('replied', '!=', False)]"/>
-                    <filter help="Bounced" domain="[('bounced', '!=', False)]"/>
+                    <filter string="Received" name="filter_received" domain="[('sent', '!=', False), ('bounced', '=', False)]"/>
+                    <filter string="Opened" name="filter_opened" domain="[('opened', '!=', False)]"/>
+                    <filter string="Replied" name="filter_replied" domain="[('replied', '!=', False)]"/>
+                    <filter string="Bounced" name="filter_bounced" domain="[('bounced', '!=', False)]"/>
                     <group expand="0" string="Group By">
-                        <filter string="State" domain="[]"
-                            context="{'group_by':'state'}"/>
-                        <filter string="Last State Update" domain="[]"
-                            context="{'group_by':'state_update'}"/>
-                        <filter string="Mass Mailing" domain="[]"
-                            context="{'group_by':'mass_mailing_id'}"/>
+                        <filter string="State" domain="[]" context="{'group_by':'state'}"/>
+                        <filter string="Open Date" name="group_open_date" context="{'group_by': 'opened:day'}"/>
+                        <filter string="Reply Date" name="group_reply_date" context="{'group_by': 'replied:day'}"/>
+                        <filter string="Last State Update" domain="[]" context="{'group_by':'state_update'}"/>
+                        <filter string="Mass Mailing" domain="[]" context="{'group_by':'mass_mailing_id'}"/>
                     </group>
                 </search>
             </field>
@@ -46,6 +46,7 @@
             <field name="model">mail.mail.statistics</field>
             <field name="arch" type="xml">
                 <tree string="Mail Statistics">
+                    <field name="recipient"/>
                     <field name="mail_mail_id_int"/>
                     <field name="message_id"/>
                     <field name="sent"/>
@@ -64,6 +65,7 @@
                 <form string="Mail Statistics">
                     <group>
                         <group>
+                            <field name="recipient"/>
                             <field name="mail_mail_id"/>
                             <field name="mail_mail_id_int"/>
                             <field name="message_id"/>
@@ -206,7 +208,7 @@
         </record>
 
         <menuitem name="Contacts" id="menu_email_mass_mailing_contacts"
-            parent="mass_mailing_campaign" sequence="4" groups="base.group_no_one"
+            parent="mass_mailing_menu" sequence="4" groups="base.group_no_one"
             action="action_view_mass_mailing_contacts"/>
 
         <!--  MASS MAILING LIST -->
@@ -244,9 +246,9 @@
             <field name="arch" type="xml">
                 <form string="Contact List">
                     <sheet>
-                        <div class="oe_right oe_button_box" name="buttons">
+                        <div class="oe_button_box" name="button_box">
                             <button name="%(mass_mailing.action_view_mass_mailing_contacts_from_list)d"
-                                    type="action" icon="fa-user" class="oe_stat_button pull-right">
+                                    type="action" icon="fa-user" class="oe_stat_button">
                                 <field name="contact_nbr" string="Recipients" widget="statinfo"/>
                             </button>
                         </div>
@@ -261,7 +263,7 @@
                         </div>
                         <notebook>
                             <page string="Popup Content">
-                                <field name="popup_content" options="{'editor_url': '/website_mass_mailing/field/popup_content'}" widget="html_frame"/>
+                                <field name="popup_content" widget="html_frame" options="{'editor_url': '/website_mass_mailing/field/popup_content'}"/>
                             </page>
                         </notebook>
                     </sheet>
@@ -270,7 +272,7 @@
         </record>
 
         <record model="ir.actions.act_window" id="action_view_mass_mailing_lists">
-            <field name="name">Contact Lists</field>
+            <field name="name">Mailing Lists</field>
             <field name="res_model">mail.mass_mailing.list</field>
             <field name="view_type">form</field>
             <field name="view_mode">tree,form</field>
@@ -284,7 +286,7 @@
         </record>
 
         <menuitem name="Mailing Lists" id="menu_email_mass_mailing_lists"
-            parent="mass_mailing_campaign" sequence="3"
+            parent="mass_mailing_menu" sequence="3"
             action="action_view_mass_mailing_lists"/>
 
         <!--  MASS MAILING !-->
@@ -326,8 +328,8 @@
         </record>
 
         <record model="ir.ui.view" id="view_mail_mass_mailing_links_tree">
-            <field name="name">website.links.tree</field>
-            <field name="model">website.links</field>
+            <field name="name">link.tracker.tree</field>
+            <field name="model">link.tracker</field>
             <field name="priority">10</field>
             <field name="arch" type="xml">
                 <tree string="Mailing Statistics of Clicks">
@@ -339,9 +341,9 @@
         </record>
         
         <record model="ir.ui.view" id="view_mail_mass_mailing_links_search">
-            <field name="name">website.links.search</field>
-            <field name="model">website.links</field>
-            <field name="inherit_id" ref="website_links.view_website_links_filter"/>
+            <field name="name">link.tracker.search</field>
+            <field name="model">link.tracker</field>
+            <field name="inherit_id" ref="link_tracker.view_link_tracker_filter"/>
             <field name="arch" type="xml">
                <search string="Tracked Link">
                     <field name="mass_mailing_id"/>
@@ -352,7 +354,7 @@
 
         <record model="ir.actions.act_window" id="action_view_mass_mailing_links_statistics">
             <field name="name">Statistics of Clicks</field>
-            <field name="res_model">website.links</field>
+            <field name="res_model">link.tracker</field>
             <field name="view_mode">tree</field>
             <field name="context">{'search_default_mass_mailing_id': active_id}</field>
         </record>
@@ -368,9 +370,7 @@
                         <button name="cancel_mass_mailing" type="object" attrs="{'invisible': [('state', '!=', 'in_queue')]}" class="oe_highlight" string="Cancel"/>
                         <button name="retry_failed_mail" type="object" attrs="{'invisible': ['|', ('state', '!=', 'done'), ('failed', '=', 0)]}" class="oe_highlight" string="Retry"/>
 
-                        <!-- Note : the statusbar is between <span> because of a Chrome CSS interpretation bug,
-                        which render the statusbar on two lines instead of one -->
-                        <span><field name="state" readonly="1" widget="statusbar"/></span>
+                        <field name="state" readonly="1" widget="statusbar"/>
                     </header>
                     <div class="oe_form_box_info oe_text_center" attrs="{'invisible': [('scheduled', '=', 0)]}">
                         <p><strong>
@@ -391,22 +391,25 @@
                         </strong></p>
                     </div>
                     <sheet>
-                        <div class="oe_button_box pull-right" attrs="{'invisible': [('state', 'in', ('draft','test'))]}">
+                        <div class="oe_button_box" name="button_box" attrs="{'invisible': [('state', 'in', ('draft','test'))]}">
                             <button name="%(action_view_mail_mail_statistics_mailing)d" type="action"
                                 icon="fa-envelope-o" class="oe_stat_button"
                                 attrs="{'invisible': [('sent', '=', 0)]}" >
                                 <field name="sent" string="Emails Sent" widget="statinfo"/>
                             </button>
                             <button name="%(action_view_mail_mail_statistics_mailing)d"
-                                type="action" class="oe_stat_button">
+                                    context="{'search_default_filter_received': True}"
+                                    type="action" class="oe_stat_button">
                                 <field name="received_ratio" string="Received" widget="percentpie"/>
                             </button>
                             <button name="%(action_view_mail_mail_statistics_mailing)d"
-                                type="action" class="oe_stat_button">
+                                    context="{'search_default_filter_opened': True}"
+                                    type="action" class="oe_stat_button">
                                 <field name="opened_ratio" string="Opened" widget="percentpie"/>
                             </button>
                             <button name="%(action_view_mail_mail_statistics_mailing)d"
-                                type="action" class="oe_stat_button">
+                                    context="{'search_default_filter_replied': True}"
+                                    type="action" class="oe_stat_button">
                                 <field name="replied_ratio" string="Replied" widget="percentpie"/>
                             </button>
                             <button name="%(action_view_mass_mailing_links_statistics)d"
@@ -414,6 +417,7 @@
                                 <field name="clicks_ratio" string="Clicks" widget="percentpie"/>
                             </button>
                             <button name="%(action_view_mail_mail_statistics_mailing)d"
+                                context="{'search_default_filter_bounced': True}"
                                 type="action" class="oe_stat_button">
                                 <field name="bounced_ratio" string="Bounced" widget="percentpie"/>
                             </button>
@@ -443,7 +447,7 @@
                         </group>
                         <notebook>
                             <page string="Mail Body">
-                                <field name="body_html" options="{'editor_url': '/website_mail/field/email_template'}"  widget="html_frame"/>
+                                <field name="body_html" widget="html_frame" options="{'editor_url': '/mass_mailing/field/email_template'}"/>
                                 <field name="attachment_ids"  widget="many2many_binary" string="Attach a file"/>
                             </page>
                             <page string="Options">
@@ -495,18 +499,20 @@
                     <templates>
                         <t t-name="kanban-box">
                             <div t-attf-class="oe_kanban_color_#{kanban_getcolor(record.color.raw_value)} oe_kanban_card oe_kanban_global_click oe_kanban_mass_mailing">
-                                <div class="oe_dropdown_toggle oe_dropdown_kanban">
-                                    <i class="fa fa-bars fa-lg"/>
-                                    <ul class="oe_dropdown_menu">
-                                        <t t-if="widget.view.is_action_enabled('delete')">
+                                <div class="o_dropdown_kanban dropdown">
+
+                                    <a class="dropdown-toggle btn" data-toggle="dropdown" href="#" >
+                                        <span class="fa fa-bars fa-lg"/>
+                                    </a>
+                                    <ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
+                                        <t t-if="widget.deletable">
                                             <li><a type="delete">Delete</a></li>
                                         </t>
                                     </ul>
                                 </div>
                                  <div class="oe_kanban_content">
-                                    <div>
+                                    <div class="o_title">
                                         <h3><field name="name"/></h3>
-
                                         <div attrs="{'invisible': [('sent_date', '=', False)]}">
                                             <h4 style="display: inline;"><field name="mass_mailing_campaign_id" groups="mass_mailing.group_mass_mailing_campaign"/></h4>
                                             <t t-if="record.mass_mailing_campaign_id.raw_value" groups="mass_mailing.group_mass_mailing_campaign"> - </t><field name="sent_date"/>
@@ -514,14 +520,32 @@
                                     </div>
                                     <div attrs="{'invisible': [('sent_date', '=', False)]}">
                                         <t t-if="record.sent_date">
-                                            <div style="display: inline-block">
-                                                <field name="delivered" widget="gauge" style="width:120px; height: 90px;"
-                                                    options="{'max_field': 'total'}"/>
+                                            <div class="row">
+                                                <div class="col-xs-8">
+                                                    <a>Opened</a>
+                                                </div>
+                                                <div class="col-xs-4 text-right">
+                                                    <field name="opened_ratio"/> %
+                                                </div>
                                             </div>
-                                            <div style="display: inline-block; vertical-align: top;">
-                                                <strong>Opened</strong> <field name="opened_ratio"/> %<br />
-                                                <strong>Replied</strong> <field name="replied_ratio"/> % <br />
-                                                <strong>Clicks</strong> <field name="clicks_ratio"/> % <br />
+                                            <div class="row">
+                                                <div class="col-xs-8">
+                                                    <a>Replied</a>
+                                                </div>
+                                                <div class="col-xs-4 text-right">
+                                                    <field name="replied_ratio"/> %
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-xs-8">
+                                                    <a>Clicks</a>
+                                                </div>
+                                                <div class="col-xs-4 text-right">
+                                                    <field name="clicks_ratio"/> %
+                                                </div>
+                                            </div>
+                                            <div class='o_kanban_primary_bottom'>
+                                                <field name="delivered" widget="progress" options="{'title': 'Delivered', 'current_value': 'delivered', 'max_value': 'total', 'editable': false}"/>
                                             </div>
                                         </t>
                                     </div>
@@ -613,7 +637,7 @@
         </record>
 
         <menuitem name="Mass Mailings" id="menu_email_mass_mailings"
-            parent="mass_mailing_campaign" sequence="2"
+            parent="mass_mailing_menu" sequence="2"
             action="action_view_mass_mailings"/>
 
         <!--  MASS MAILING CAMPAIGN STAGE !-->
@@ -645,11 +669,11 @@
             <field name="view_mode">tree,form</field>
         </record>
 
-        <menuitem name="Mass Mailing" id= "menu_view_mass_mailing_config"
-            parent="base.menu_marketing_config_root" sequence="4" groups="marketing.group_marketing_user"/>
-           
+        <menuitem id="menu_mass_mailing_configuration" name="Configuration" parent="mass_mailing_menu_root"
+            sequence="100" groups="marketing.group_marketing_user,base.group_configuration"/>
+
         <menuitem name="Campaign Stages" id="menu_view_mass_mailing_stages"
-            parent="menu_view_mass_mailing_config" sequence="1"
+            parent="menu_mass_mailing_configuration" sequence="1"
             groups="mass_mailing.group_mass_mailing_campaign"
             action="action_view_mass_mailing_stages"/>
 
@@ -688,7 +712,7 @@
 
         <record model="ir.actions.act_window" id="dropdb snipp">
             <field name="name">Statistics of Clicks</field>
-            <field name="res_model">website.links</field>
+            <field name="res_model">link.tracker</field>
             <field name="view_mode">tree</field>
             <field name="context">{'search_default_mass_mailing_campaign_id': active_id}</field>
         </record>
@@ -704,43 +728,39 @@
                         <span><field name="stage_id" widget="statusbar" clickable="True"/></span>
                     </header>
                     <sheet>
+                        <field name="total" invisible="1"/>
+                        <div class="oe_button_box" name="button_box"
+                            attrs="{'invisible': [('total', '=', 0)]}">
+                            <button name="%(action_view_mass_mailings_from_campaign)d"
+                                type="action" class="oe_stat_button" icon="fa-envelope-o">
+                                <field name="total_mailings" widget="statinfo" string="Mailings"/>
+                            </button>
+                            <button name="%(action_view_mail_mail_statistics_mailing)d" type="action"
+                                icon="fa-envelope-o" class="oe_stat_button"
+                                attrs="{'invisible': [('sent', '=', 0)]}" >
+                                <field name="sent" string="Emails Sent" widget="statinfo"/>
+                            </button>
+                            <button name="%(action_view_mass_mailing_contacts)d"
+                                type="action" class="oe_stat_button">
+                                <field name="received_ratio" widget="percentpie" string="Received"/>
+                            </button>
+                            <button name="%(action_view_mass_mailing_contacts)d"
+                                type="action" class="oe_stat_button">
+                                <field name="opened_ratio" widget="percentpie" string="Opened"/>
+                            </button>
+                            <button name="%(action_view_mass_mailing_contacts)d"
+                                type="action" class="oe_stat_button">
+                                <field name="replied_ratio" widget="percentpie" string="Replied"/>
+                            </button>
+                            <button name="%(dropdb snipp)d"
+                                type="action" class="oe_stat_button">
+                                <field name="clicks_ratio" widget="percentpie" string="Clicks"/>
+                            </button>
+                        </div>
                         <group>
-                            <group>
-                                <field name="name" string="Campaign Name" on_change="on_change_campaign_name(name)"/>
-                                <field name="user_id"/>
-                                <field name="tag_ids" widget="many2many_tags"/>
-                            </group>
-                            <group>
-                                <field name="total" invisible="1"/>
-                                <div class="oe_right oe_button_box" name="buttons"
-                                    attrs="{'invisible': [('total', '=', 0)]}">
-                                    <button name="%(action_view_mass_mailings_from_campaign)d"
-                                        type="action" class="oe_inline oe_stat_button" icon="fa-envelope-o">
-                                        <field name="total_mailings" widget="statinfo" string="Mailings"/>
-                                    </button>
-                                    <button name="%(action_view_mail_mail_statistics_mailing)d" type="action"
-                                        icon="fa-envelope-o" class="oe_stat_button"
-                                        attrs="{'invisible': [('sent', '=', 0)]}" >
-                                        <field name="sent" string="Emails Sent" widget="statinfo"/>
-                                    </button>
-                                    <button name="%(action_view_mass_mailing_contacts)d"
-                                        type="action" class="oe_stat_button oe_inline">
-                                        <field name="received_ratio" widget="percentpie" string="Received"/>
-                                    </button>
-                                    <button name="%(action_view_mass_mailing_contacts)d"
-                                        type="action" class="oe_stat_button oe_inline">
-                                        <field name="opened_ratio" widget="percentpie" string="Opened"/>
-                                    </button>
-                                    <button name="%(action_view_mass_mailing_contacts)d"
-                                        type="action" class="oe_stat_button oe_inline">
-                                        <field name="replied_ratio" widget="percentpie" string="Replied"/>
-                                    </button>
-                                    <button name="%(dropdb snipp)d"
-                                        type="action" class="oe_stat_button">
-                                        <field name="clicks_ratio" widget="percentpie" string="Clicks"/>
-                                    </button>
-                                </div>
-                            </group>
+                            <field name="name" string="Campaign Name" on_change="on_change_campaign_name(name)"/>
+                            <field name="user_id"/>
+                            <field name="tag_ids" widget="many2many_tags"/>
                         </group>
                         <notebook>
                             <page string="Tracking">
@@ -783,13 +803,16 @@
                     <templates>
                         <t t-name="kanban-box">
                             <div t-attf-class="oe_kanban_color_#{kanban_getcolor(record.color.raw_value)} oe_kanban_card oe_kanban_global_click oe_kanban_mass_mailing_campaign">
-                                <div class="oe_dropdown_toggle oe_dropdown_kanban">
-                                    <i class="fa fa-bars fa-lg"/>
-                                    <ul class="oe_dropdown_menu">
-                                        <t t-if="widget.view.is_action_enabled('edit')">
+                                <div class="o_dropdown_kanban dropdown">
+
+                                    <a class="dropdown-toggle btn" data-toggle="dropdown" href="#" >
+                                        <span class="fa fa-bars fa-lg"/>
+                                    </a>
+                                    <ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
+                                        <t t-if="widget.editable">
                                             <li><a type="edit">Settings</a></li>
                                         </t>
-                                        <t t-if="widget.view.is_action_enabled('delete')">
+                                        <t t-if="widget.deletable">
                                             <li><a type="delete">Delete</a></li>
                                         </t>
                                         <li><ul class="oe_kanban_colorpicker" data-field="color"/></li>
@@ -856,7 +879,7 @@
         </record>
 
         <menuitem name="Campaigns" id="menu_email_campaigns"
-            parent="mass_mailing_campaign" sequence="1"
+            parent="mass_mailing_menu_root" sequence="5"
             action="action_view_mass_mailing_campaigns"
             groups="mass_mailing.group_mass_mailing_campaign"/>
 

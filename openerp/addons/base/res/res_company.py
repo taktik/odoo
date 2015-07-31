@@ -1,74 +1,15 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2009 Tiny SPRL (<http://tiny.be>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import os
 import re
 import openerp
-from openerp import SUPERUSER_ID, tools
+from openerp import SUPERUSER_ID, tools, api
 from openerp.osv import fields, osv
 from openerp.tools.translate import _
 from openerp.tools.safe_eval import safe_eval as eval
 from openerp.tools import image_resize_image
   
-class multi_company_default(osv.osv):
-    """
-    Manage multi company default value
-    """
-    _name = 'multi_company.default'
-    _description = 'Default multi company'
-    _order = 'company_id,sequence,id'
-
-    _columns = {
-        'sequence': fields.integer('Sequence'),
-        'name': fields.char('Name', required=True, help='Name it to easily find a record'),
-        'company_id': fields.many2one('res.company', 'Main Company', required=True,
-            help='Company where the user is connected'),
-        'company_dest_id': fields.many2one('res.company', 'Default Company', required=True,
-            help='Company to store the current record'),
-        'object_id': fields.many2one('ir.model', 'Object', required=True,
-            help='Object affected by this rule'),
-        'expression': fields.char('Expression', required=True,
-            help='Expression, must be True to match\nuse context.get or user (browse)'),
-        'field_id': fields.many2one('ir.model.fields', 'Field', help='Select field property'),
-    }
-
-    _defaults = {
-        'expression': 'True',
-        'sequence': 100,
-    }
-
-    def copy(self, cr, uid, id, default=None, context=None):
-        """
-        Add (copy) in the name when duplicate record
-        """
-        if not context:
-            context = {}
-        if not default:
-            default = {}
-        company = self.browse(cr, uid, id, context=context)
-        default = default.copy()
-        default['name'] = company.name + _(' (copy)')
-        return super(multi_company_default, self).copy(cr, uid, id, default, context=context)
-
-multi_company_default()
 
 class res_company(osv.osv):
     _name = "res.company"
@@ -132,7 +73,6 @@ class res_company(osv.osv):
             'res.partner': (_get_companies_from_partner, ['image'], 10),
         }),
         'currency_id': fields.many2one('res.currency', 'Currency', required=True),
-        'currency_ids': fields.one2many('res.currency', 'company_id', 'Currency'),
         'user_ids': fields.many2many('res.users', 'res_company_users_rel', 'cid', 'user_id', 'Accepted Users'),
         'account_no':fields.char('Account No.'),
         'street': fields.function(_get_address_data, fnct_inv=_set_address_data, size=128, type='char', string="Street", multi='address'),
@@ -222,30 +162,20 @@ class res_company(osv.osv):
             args = (args or []) + [('id', 'in', cmp_ids)]
         return super(res_company, self).name_search(cr, uid, name=name, args=args, operator=operator, context=context, limit=limit)
 
+    @api.returns('self')
     def _company_default_get(self, cr, uid, object=False, field=False, context=None):
         """
-        Check if the object for this company have a default value
+        Returns the default company (the user's company)
+        The 'object' and 'field' arguments are ignored but left here for
+        backward compatibility and potential override.
         """
-        if not context:
-            context = {}
-        proxy = self.pool.get('multi_company.default')
-        args = [
-            ('object_id.model', '=', object),
-            ('field_id', '=', field),
-        ]
+        return self.pool['res.users']._get_company(cr, uid, context=context)
 
-        ids = proxy.search(cr, uid, args, context=context)
-        user = self.pool.get('res.users').browse(cr, SUPERUSER_ID, uid, context=context)
-        for rule in proxy.browse(cr, uid, ids, context):
-            if eval(rule.expression, {'context': context, 'user': user}):
-                return rule.company_dest_id.id
-        return user.company_id.id
-
-    @tools.ormcache()
+    @tools.ormcache('uid', 'company')
     def _get_company_children(self, cr, uid=None, company=None):
         if not company:
             return []
-        ids =  self.search(cr, uid, [('parent_id','child_of',[company])])
+        ids = self.search(cr, uid, [('parent_id','child_of',[company])])
         return ids
 
     def _get_partner_hierarchy(self, cr, uid, company_id, context=None):

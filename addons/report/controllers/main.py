@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2014-Today OpenERP SA (<http://www.openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp.addons.web.http import Controller, route, request
 from openerp.addons.web.controllers.main import _serialize_exception, content_disposition
@@ -46,22 +28,21 @@ class ReportController(Controller):
 
         if docids:
             docids = [int(i) for i in docids.split(',')]
-        options_data = None
         if data.get('options'):
-            options_data = simplejson.loads(data['options'])
+            data['options'] = simplejson.loads(data['options'])
         if data.get('context'):
             # Ignore 'lang' here, because the context in data is the one from the webclient *but* if
-            # the user explicitely wants to change the lang, this mechanism overwrites it. 
-            data_context = simplejson.loads(data['context'])
-            if data_context.get('lang'):
-                del data_context['lang']
-            context.update(data_context)
+            # the user explicitely wants to change the lang, this mechanism overwrites it.
+            data['context'] = simplejson.loads(data['context'])
+            if data['context'].get('lang'):
+                del data['context']['lang']
+            context.update(data['context'])
 
         if converter == 'html':
-            html = report_obj.get_html(cr, uid, docids, reportname, data=options_data, context=context)
+            html = report_obj.get_html(cr, uid, docids, reportname, data=data, context=context)
             return request.make_response(html)
         elif converter == 'pdf':
-            pdf = report_obj.get_pdf(cr, uid, docids, reportname, data=options_data, context=context)
+            pdf = report_obj.get_pdf(cr, uid, docids, reportname, data=data, context=context)
             pdfhttpheaders = [('Content-Type', 'application/pdf'), ('Content-Length', len(pdf))]
             return request.make_response(pdf, headers=pdfhttpheaders)
         else:

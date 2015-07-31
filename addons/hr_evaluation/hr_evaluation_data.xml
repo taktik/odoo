@@ -8,9 +8,9 @@
         </record>
         <!-- notify all employees of module installation -->
         <record model="mail.message" id="module_install_notification">
-            <field name="model">mail.group</field>
-            <field name="res_id" ref="mail.group_all_employees"/>
-            <field name="type">notification</field>
+            <field name="model">mail.channel</field>
+            <field name="res_id" ref="mail.channel_all_employees"/>
+            <field name="message_type">notification</field>
             <field name="subtype_id" ref="mail.mt_comment"/>
             <field name="subject">Employee Appraisals application installed!</field>
             <field name="body"><![CDATA[<p>Manage employee reviews: you can define an appraisal campaign with several steps, with specific evaluation surveys according to hierarchy levels. Evaluations filled by employees may be exported as pdf files.</p>]]></field>
@@ -38,11 +38,6 @@
             <field name="survey_id" ref="appraisal_form"/>
             <field eval="0" name="send_answer_manager"/>
             <field eval="0" name="wait"/>
-        </record>
-
-
-        <record id="hr.employee" model="hr.employee">
-            <field name="evaluation_plan_id" ref="hr_evaluation_plan_managersevaluationplan0"/>
         </record>
 
 

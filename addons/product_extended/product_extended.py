@@ -1,22 +1,4 @@
-##############################################################################
-#    
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2014 OpenERP S.A. (<http://www.openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.     
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp.osv import fields
 from openerp.osv import osv
@@ -38,7 +20,7 @@ class product_template(osv.osv):
             ids = product_ids
             model = 'product.product'
         else:
-            ids = template_ids
+            ids = template_ids or []
             model = 'product.template'
         for prod_id in ids:
             bom_obj = self.pool.get('mrp.bom')
@@ -74,7 +56,7 @@ class product_template(osv.osv):
         uom_obj = self.pool.get("product.uom")
         tmpl_obj = self.pool.get('product.template')
         for sbom in bom.bom_line_ids:
-            my_qty = sbom.product_qty
+            my_qty = sbom.product_qty / sbom.product_efficiency
             if not sbom.attribute_value_ids:
                 # No attribute_value_ids means the bom line is not variant specific
                 price += uom_obj._compute_price(cr, uid, sbom.product_id.uom_id.id, sbom.product_id.standard_price, sbom.product_uom.id) * my_qty

@@ -1,24 +1,5 @@
 # -*- encoding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2010 Tiny SPRL (<http://tiny.be>). All Rights Reserved
-#    $Id$
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
 from openerp.osv import fields, osv
@@ -50,7 +31,7 @@ class purchase_requisition(osv.osv):
         'description': fields.text('Description'),
         'company_id': fields.many2one('res.company', 'Company', required=True),
         'purchase_ids': fields.one2many('purchase.order', 'requisition_id', 'Purchase Orders', states={'done': [('readonly', True)]}),
-        'po_line_ids': fields.function(_get_po_line, method=True, type='one2many', relation='purchase.order.line', string='Products by supplier'),
+        'po_line_ids': fields.function(_get_po_line, method=True, type='one2many', relation='purchase.order.line', string='Products by vendor'),
         'line_ids': fields.one2many('purchase.requisition.line', 'requisition_id', 'Products to Purchase', states={'done': [('readonly', True)]}, copy=True),
         'procurement_id': fields.many2one('procurement.order', 'Procurement', ondelete='set null', copy=False),
         'warehouse_id': fields.many2one('stock.warehouse', 'Warehouse'),
@@ -59,7 +40,7 @@ class purchase_requisition(osv.osv):
                                    ('cancel', 'Cancelled')],
                                   'Status', track_visibility='onchange', required=True,
                                   copy=False),
-        'multiple_rfq_per_supplier': fields.boolean('Multiple RFQ per supplier'),
+        'multiple_rfq_per_supplier': fields.boolean('Multiple RFQ per vendor'),
         'account_analytic_id': fields.many2one('account.analytic.account', 'Analytic Account'),
         'picking_type_id': fields.many2one('stock.picking.type', 'Picking Type', required=True),
     }
@@ -107,7 +88,7 @@ class purchase_requisition(osv.osv):
 
     def open_product_line(self, cr, uid, ids, context=None):
         """ This opens product line view to view all lines from the different quotations, groupby default by product and partner to show comparaison
-            between supplier price
+            between vendor price
             @return: the product line tree view
         """
         if context is None:
@@ -145,7 +126,7 @@ class purchase_requisition(osv.osv):
             'currency_id': supplier_pricelist and supplier_pricelist.currency_id.id or requisition.company_id.currency_id.id,
             'location_id': requisition.procurement_id and requisition.procurement_id.location_id.id or requisition.picking_type_id.default_location_dest_id.id,
             'company_id': requisition.company_id.id,
-            'fiscal_position': supplier.property_account_position and supplier.property_account_position.id or False,
+            'fiscal_position_id': supplier.property_account_position_id and supplier.property_account_position_id.id or False,
             'requisition_id': requisition.id,
             'notes': requisition.description,
             'picking_type_id': requisition.picking_type_id.id
@@ -166,7 +147,7 @@ class purchase_requisition(osv.osv):
         vals = po_line_obj.onchange_product_id(
             cr, uid, [], supplier_pricelist, product.id, qty, default_uom_po_id,
             supplier.id, date_order=date_order,
-            fiscal_position_id=supplier.property_account_position,
+            fiscal_position_id=supplier.property_account_position_id.id,
             date_planned=requisition_line.schedule_date,
             name=False, price_unit=False, state='draft', context=context)['value']
         vals.update({
@@ -179,10 +160,10 @@ class purchase_requisition(osv.osv):
 
     def make_purchase_order(self, cr, uid, ids, partner_id, context=None):
         """
-        Create New RFQ for Supplier
+        Create New RFQ for Vendor
         """
         context = dict(context or {})
-        assert partner_id, 'Supplier should be specified'
+        assert partner_id, 'Vendor should be specified'
         purchase_order = self.pool.get('purchase.order')
         purchase_order_line = self.pool.get('purchase.order.line')
         res_partner = self.pool.get('res.partner')

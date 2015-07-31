@@ -2,7 +2,7 @@ odoo.define('web.FavoriteMenu', function (require) {
 "use strict";
 
 var core = require('web.core');
-var Model = require('web.Model');
+var Model = require('web.DataModel');
 var pyeval = require('web.pyeval');
 var session = require('web.session');
 var Widget = require('web.Widget');
@@ -55,10 +55,6 @@ return Widget.extend({
                 }
             })
             .on('reset', this.proxy('clear_selection'));
-        if (!this.action_id) {
-            this.prepare_dropdown_menu([]);
-            return $.when();
-        }
         return this.model.call('get_filters', [this.target_model, this.action_id],
                                {context: this.searchview.dataset.context})
             .done(this.proxy('prepare_dropdown_menu'));
@@ -68,10 +64,10 @@ return Widget.extend({
     },
     toggle_save_menu: function (is_open) {
         this.$save_search
-            .toggleClass('closed-menu', !(_.isUndefined(is_open)) ? !is_open : undefined)
-            .toggleClass('open-menu', is_open);
+            .toggleClass('o_closed_menu', !(_.isUndefined(is_open)) ? !is_open : undefined)
+            .toggleClass('o_open_menu', is_open);
         this.$save_name.toggle(is_open);
-        if (this.$save_search.hasClass('open-menu')) {
+        if (this.$save_search.hasClass('o_open_menu')) {
             this.$save_name.find('input').first().focus();
         }
     },
@@ -122,6 +118,7 @@ return Widget.extend({
             model_id: this.searchview.dataset.model,
             context: results.context,
             domain: results.domain,
+            sort: JSON.stringify(this.searchview.dataset._sort),
             is_default: default_filter,
             action_id: this.action_id,
         };
@@ -231,6 +228,13 @@ return Widget.extend({
         }
         this.query.reset([this.facet_for(filter)], {
             preventSearch: preventSearch || false});
+
+        // Load sort settings on view
+        if (!_.isUndefined(filter.sort)){
+            var sort_items = JSON.parse(filter.sort);
+            this.searchview.dataset.set_sort(sort_items);
+        }
+
         this.$filters[this.key_for(filter)].addClass('selected');
     },
     remove_filter: function (filter, $filter, key) {
@@ -312,10 +316,10 @@ return Widget.extend({
     },
     toggle_custom_filter_menu: function (is_open) {
         this.$add_filter
-            .toggleClass('closed-menu', !(_.isUndefined(is_open)) ? !is_open : undefined)
-            .toggleClass('open-menu', is_open);
+            .toggleClass('o_closed_menu', !(_.isUndefined(is_open)) ? !is_open : undefined)
+            .toggleClass('o_open_menu', is_open);
         this.$add_filter_menu.toggle(is_open);
-        if (this.$add_filter.hasClass('closed-menu') && (!this.propositions.length)) {
+        if (this.$add_filter.hasClass('o_closed_menu') && (!this.propositions.length)) {
             this.append_proposition();
         }
         this.$('.oe-filter-condition').toggle(is_open);
@@ -420,10 +424,10 @@ return Widget.extend({
     },
     toggle_add_menu: function (is_open) {
         this.$add_group
-            .toggleClass('closed-menu', !(_.isUndefined(is_open)) ? !is_open : undefined)
-            .toggleClass('open-menu', is_open);
+            .toggleClass('o_closed_menu', !(_.isUndefined(is_open)) ? !is_open : undefined)
+            .toggleClass('o_open_menu', is_open);
         this.$add_group_menu.toggle(is_open);
-        if (this.$add_group.hasClass('open-menu')) {
+        if (this.$add_group.hasClass('o_open_menu')) {
             this.$group_selector.focus();
         }
     },

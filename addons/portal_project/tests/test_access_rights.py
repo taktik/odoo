@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Business Applications
-#    Copyright (c) 2013-TODAY OpenERP S.A. <http://openerp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp.addons.project.tests.test_project_base import TestProjectBase
 from openerp.exceptions import AccessError
@@ -29,6 +11,14 @@ class TestPortalProjectBase(TestProjectBase):
 
     def setUp(self):
         super(TestPortalProjectBase, self).setUp()
+        self.user_noone = self.env['res.users'].with_context({'no_reset_password': True, 'mail_create_nosubscribe': True}).create({
+            'name': 'Noemie NoOne',
+            'login': 'noemie',
+            'alias_name': 'noemie',
+            'email': 'n.n@example.com',
+            'signature': '--\nNoemie',
+            'notify_email': 'always',
+            'groups_id': [(6, 0, [])]})
 
         self.task_3 = self.env['project.task'].with_context({'mail_create_nolog': True}).create({
             'name': 'Test3', 'user_id': self.user_portal.id, 'project_id': self.project_pigs.id})

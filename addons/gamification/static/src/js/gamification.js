@@ -4,7 +4,7 @@ odoo.define('gamification.gamification', function(require) {
 var mail = require('mail.mail');
 var core = require('web.core');
 var form_common = require('web.form_common');
-var Model = require('web.Model');
+var Model = require('web.DataModel');
 var session = require('web.session');
 var Widget = require('web.Widget');
 
@@ -117,14 +117,6 @@ var Sidebar = Widget.extend({
             $(this).attr("src", url);
         });
     }
-});
-
-mail.Wall.include({
-    start: function() {
-        this._super();
-        var sidebar = new Sidebar(this);
-        sidebar.appendTo($('.oe_mail_wall_aside'));
-    },
 });
 
 });

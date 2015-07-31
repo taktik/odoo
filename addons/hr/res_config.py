@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Business Applications
-#    Copyright (C) 2004-2012 OpenERP S.A. (<http://openerp.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp.osv import fields, osv
 
@@ -44,16 +26,12 @@ class hr_config_settings(osv.osv_memory):
             help ="""This installs the module hr_evaluation."""),
         'module_hr_gamification': fields.boolean('Drive engagement with challenges and badges',
             help ="""This installs the module hr_gamification."""),
-        'module_account_analytic_analysis': fields.boolean('Allow invoicing based on timesheets (the sale application will be installed)',
-            help ="""This installs the module account_analytic_analysis, which will install sales management too."""),
+        'module_sale_contract': fields.boolean('Allow invoicing based on timesheets (the sale application will be installed)',
+            help ="""This installs the module sale_contract, which will install sales management too."""),
         'module_hr_payroll': fields.boolean('Manage payroll',
             help ="""This installs the module hr_payroll."""),
         'module_website_hr_recruitment': fields.boolean('Publish jobs on your website',
             help ="""This installs the module website_hr_recruitment"""),
-        'group_multi_departments': fields.boolean(
-            "Manage employees by department",
-            implied_group='hr.group_multi_departments', group="base.group_hr_user",
-            help="""Allows you to manage employees by department."""),
         'group_hr_attendance': fields.boolean('Track attendances for all employees',
             implied_group='base.group_hr_attendance',
             help="Allocates attendance group to all users."),

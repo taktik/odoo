@@ -264,7 +264,7 @@ class WebsiteBlog(http.Controller):
         message_id = BlogPost.message_post(
             cr, uid, int(blog_post_id),
             body=message_content,
-            type='comment',
+            message_type='comment',
             subtype='mt_comment',
             author_id=partner_id,
             path=post.get('path', False),
@@ -358,7 +358,7 @@ class WebsiteBlog(http.Controller):
     def change_bg(self, post_id=0, cover_properties={}, **post):
         if not post_id:
             return False
-        return request.registry['blog.post'].write(request.cr, request.uid, [int(post_id)], {'cover_properties': cover_properties}, request.context)
+        return request.registry['blog.post'].write(request.cr, request.uid, [int(post_id)], {'cover_properties': json.dumps(cover_properties)}, request.context)
 
     @http.route('/blog/get_user/', type='json', auth="public", website=True)
     def get_user(self, **post):

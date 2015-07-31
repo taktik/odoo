@@ -6,7 +6,7 @@ var crash_manager = require('web.crash_manager');
 var data = require('web.data');
 var Dialog = require('web.Dialog');
 var common = require('web.form_common');
-var Model = require('web.Model');
+var Model = require('web.DataModel');
 var Sidebar = require('web.Sidebar');
 var utils = require('web.utils');
 var View = require('web.View');
@@ -34,6 +34,7 @@ var FormView = View.extend(common.FieldManagerMixin, {
     display_name: _lt('Form'),
     view_type: "form",
     multi_record: false,
+    accesskey: "F",
     /**
      * @constructs instance.web.FormView
      * @extends instance.web.View
@@ -89,10 +90,17 @@ var FormView = View.extend(common.FieldManagerMixin, {
             self.on("change:actual_mode", self, self.do_update_pager);
         });
         self.on("load_record", self, self.load_record);
-        core.bus.on('clear_uncommitted_changes', this, function(e) {
-            if (!this.can_be_discarded()) {
-                e.preventDefault();
-            }
+        core.bus.on('clear_uncommitted_changes', this, function(chain_callbacks) {
+            var self = this;
+            chain_callbacks(function() {
+                var def = $.Deferred();
+                self.can_be_discarded().then(function() {
+                    def.resolve();
+                }).fail(function() {
+                    def.reject();
+                });
+                return def;
+            });
         });
     },
     view_loading: function(r) {
@@ -134,7 +142,7 @@ var FormView = View.extend(common.FieldManagerMixin, {
 
         // Add bounce effect on button 'Edit' when click on readonly page view.
         this.$el.find(".oe_form_group_row,.oe_form_field,label,h1,.oe_title,.oe_notebook_page, .oe_list_content").on('click', function (e) {
-            if(self.get("actual_mode") == "view" && self.$buttons) {
+            if(self.get("actual_mode") == "view" && self.$buttons && !$(e.target).is('[data-toggle]')) {
                 var $button = self.$buttons.find(".oe_form_button_edit");
                 $button.openerpBounce();
                 e.stopPropagation();
@@ -262,9 +270,8 @@ var FormView = View.extend(common.FieldManagerMixin, {
      * Show or hide the sidebar according to the actual_mode
      */
     toggle_sidebar: function() {
-        var view_mode = this.get("actual_mode") === "view";
         if (this.sidebar) {
-            this.sidebar.$el.toggle(view_mode);
+            this.sidebar.do_toggle(this.get("actual_mode") === "view");
         }
     },
     widgetFocused: function() {
@@ -309,7 +316,8 @@ var FormView = View.extend(common.FieldManagerMixin, {
     do_show: function (options) {
         var self = this;
         options = options || {};
-        this.$el.show().css({
+        this._super();
+        this.$el.css({
             opacity: '0',
             filter: 'alpha(opacity = 0)'
         });
@@ -402,26 +410,25 @@ var FormView = View.extend(common.FieldManagerMixin, {
         this.$el.addClass('oe_form_dirty');
     },
     execute_pager_action: function(action) {
-        if (this.can_be_discarded()) {
+        var self = this;
+        return this.can_be_discarded().then(function() {
             switch (action) {
                 case 'first':
-                    this.dataset.index = 0;
+                    self.dataset.index = 0;
                     break;
                 case 'previous':
-                    this.dataset.previous();
+                    self.dataset.previous();
                     break;
                 case 'next':
-                    this.dataset.next();
+                    self.dataset.next();
                     break;
                 case 'last':
-                    this.dataset.index = this.dataset.ids.length - 1;
+                    self.dataset.index = self.dataset.ids.length - 1;
                     break;
             }
-            var def = this.reload();
-            this.trigger('pager_action_executed');
-            return def;
-        }
-        return $.when();
+            self.trigger('pager_action_executed');
+            return self.reload();
+        });
     },
     do_update_pager: function(hide_index) {
         if (this.$pager) {
@@ -583,10 +590,8 @@ var FormView = View.extend(common.FieldManagerMixin, {
             new Dialog(this, {
                 size: 'medium',
                 title:result.warning.title,
-                buttons: [
-                    {text: _t("Ok"), click: function() { this.parents('.modal').modal('hide'); }}
-                ]
-            }, QWeb.render("CrashManager.warning", result.warning)).open();
+                $content: QWeb.render("CrashManager.warning", result.warning)
+            }).open();
         }
 
         return $.Deferred().resolve();
@@ -611,7 +616,7 @@ var FormView = View.extend(common.FieldManagerMixin, {
                 });
 
                 var args = _.toArray(arguments);
-                return $.when.apply(null, [mutex.def, self.onchanges_mutex.def]).then(function() {
+                return mutex.def.then(function () { return self.onchanges_mutex.def; }).then(function() {
                     var save_obj = self.save_list.pop();
                     if (save_obj) {
                         return self._process_save(save_obj).then(function() {
@@ -637,7 +642,7 @@ var FormView = View.extend(common.FieldManagerMixin, {
             // If field is not defined in the view, just ignore it
             if (field) {
                 var value_ = values[f];
-                if (field.get_value() != value_) {
+                if (field.get_value() !== value_) {
                     field._inhibit_on_change_flag = true;
                     field.set_value(value_);
                     field._inhibit_on_change_flag = false;
@@ -729,16 +734,16 @@ var FormView = View.extend(common.FieldManagerMixin, {
     },
     on_button_cancel: function(event) {
         var self = this;
-        if (this.can_be_discarded()) {
-            if (this.get('actual_mode') === 'create') {
-                this.trigger('history_back');
+        this.can_be_discarded().then(function() {
+            if (self.get('actual_mode') === 'create') {
+                self.trigger('history_back');
             } else {
-                this.to_view_mode();
-                $.when.apply(null, this.render_value_defs).then(function(){
+                self.to_view_mode();
+                $.when.apply(null, self.render_value_defs).then(function(){
                     self.trigger('load_record', self.datarecord);
                 });
             }
-        }
+        });
         this.trigger('on_button_cancel');
         return false;
     },
@@ -746,9 +751,9 @@ var FormView = View.extend(common.FieldManagerMixin, {
         var self = this;
         this.to_edit_mode();
         return $.when(this.has_been_loaded).then(function() {
-            if (self.can_be_discarded()) {
+            return self.can_be_discarded().then(function() {
                 return self.load_defaults();
-            }
+            });
         });
     },
     on_button_edit: function() {
@@ -789,13 +794,25 @@ var FormView = View.extend(common.FieldManagerMixin, {
         return def.promise();
     },
     can_be_discarded: function() {
-        if (this.$el.is('.oe_form_dirty')) {
-            if (!confirm(_t("Warning, the record has been modified, your changes will be discarded.\n\nAre you sure you want to leave this page ?"))) {
-                return false;
-            }
-            this.$el.removeClass('oe_form_dirty');
+        if (!this.$el.is('.oe_form_dirty')) {
+            return $.Deferred().resolve();
         }
-        return true;
+
+        var self = this;
+        var def = $.Deferred();
+        var message = _t("The record has been modified, your changes will be discarded. Are you sure you want to leave this page ?");
+        var options = {
+            title: _t("Warning"),
+            confirm_callback: function() {
+                self.$el.removeClass('oe_form_dirty');
+                def.resolve();
+            },
+            cancel_callback: function() {
+                def.reject();
+            },
+        };
+        Dialog.confirm(this, message, options);
+        return def;
     },
     /**
      * Triggers saving the form's record. Chooses between creating a new
@@ -821,68 +838,92 @@ var FormView = View.extend(common.FieldManagerMixin, {
     _process_save: function(save_obj) {
         var self = this;
         var prepend_on_create = save_obj.prepend_on_create;
+        var def_process_save = $.Deferred();
         try {
             var form_invalid = false,
                 values = {},
                 first_invalid_field = null,
-                readonly_values = {};
-            for (var f in self.fields) {
-                if (!self.fields.hasOwnProperty(f)) { continue; }
-                f = self.fields[f];
-                if (!f.is_valid()) {
-                    form_invalid = true;
-                    if (!first_invalid_field) {
-                        first_invalid_field = f;
-                    }
-                } else if (f.name !== 'id' && (!self.datarecord.id || f._dirty_flag)) {
-                    // Special case 'id' field, do not save this field
-                    // on 'create' : save all non readonly fields
-                    // on 'edit' : save non readonly modified fields
-                    if (!f.get("readonly")) {
-                        values[f.name] = f.get_value(true);
-                    } else {
-                        readonly_values[f.name] = f.get_value(true);
-                    }
+                readonly_values = {},
+                deferred = [];
+
+            _.each(self.fields, function (f) {
+                var res = f.before_save();
+                if (res) {
+                    deferred.push(res);
+                    res.fail(function () {
+                        form_invalid = true;
+                        if (!first_invalid_field) {
+                            first_invalid_field = f;
+                        }
+                    });
                 }
-            }
-            // Heuristic to assign a proper sequence number for new records that
-            // are added in a dataset containing other lines with existing sequence numbers
-            if (!self.datarecord.id && self.fields.sequence &&
-                !_.has(values, 'sequence') && !_.isEmpty(self.dataset.cache)) {
-                // Find current max or min sequence (editable top/bottom)
-                var current = _[prepend_on_create ? "min" : "max"](
-                    _.map(self.dataset.cache, function(o){return o.values.sequence})
-                );
-                values['sequence'] = prepend_on_create ? current - 1 : current + 1;
-            }
-            if (form_invalid) {
-                self.set({'display_invalid_fields': true});
-                first_invalid_field.focus();
-                self.on_invalid();
-                return $.Deferred().reject();
-            } else {
-                self.set({'display_invalid_fields': false});
-                var save_deferral;
-                if (!self.datarecord.id) {
-                    // Creation save
-                    save_deferral = self.dataset.create(values, {readonly_fields: readonly_values}).then(function(r) {
-                        return self.record_created(r, prepend_on_create);
-                    }, null);
-                } else if (_.isEmpty(values)) {
-                    // Not dirty, noop save
-                    save_deferral = $.Deferred().resolve({}).promise();
+            });
+
+            $.when.apply($, deferred).always(function () {
+
+                _.each(self.fields, function (f) {
+                    if (!f.is_valid()) {
+                        form_invalid = true;
+                        if (!first_invalid_field) {
+                            first_invalid_field = f;
+                        }
+                    } else if (f.name !== 'id' && (!self.datarecord.id || f._dirty_flag)) {
+                        // Special case 'id' field, do not save this field
+                        // on 'create' : save all non readonly fields
+                        // on 'edit' : save non readonly modified fields
+                        if (!f.get("readonly")) {
+                            values[f.name] = f.get_value(true);
+                        } else {
+                            readonly_values[f.name] = f.get_value(true);
+                        }
+                    }
+
+                });
+
+                // Heuristic to assign a proper sequence number for new records that
+                // are added in a dataset containing other lines with existing sequence numbers
+                if (!self.datarecord.id && self.fields.sequence &&
+                    !_.has(values, 'sequence') && !_.isEmpty(self.dataset.cache)) {
+                    // Find current max or min sequence (editable top/bottom)
+                    var current = _[prepend_on_create ? "min" : "max"](
+                        _.map(self.dataset.cache, function(o){return o.values.sequence})
+                    );
+                    values['sequence'] = prepend_on_create ? current - 1 : current + 1;
+                }
+                if (form_invalid) {
+                    self.set({'display_invalid_fields': true});
+                    first_invalid_field.focus();
+                    self.on_invalid();
+                    def_process_save.reject();
                 } else {
-                    // Write save
-                    save_deferral = self.dataset.write(self.datarecord.id, values, {readonly_fields: readonly_values}).then(function(r) {
-                        return self.record_saved(r);
-                    }, null);
+                    self.set({'display_invalid_fields': false});
+                    var save_deferral;
+                    if (!self.datarecord.id) {
+                        // Creation save
+                        save_deferral = self.dataset.create(values, {readonly_fields: readonly_values}).then(function(r) {
+                            return self.record_created(r, prepend_on_create);
+                        }, null);
+                    } else if (_.isEmpty(values)) {
+                        // Not dirty, noop save
+                        save_deferral = $.Deferred().resolve({}).promise();
+                    } else {
+                        // Write save
+                        save_deferral = self.dataset.write(self.datarecord.id, values, {readonly_fields: readonly_values}).then(function(r) {
+                            return self.record_saved(r);
+                        }, null);
+                    }
+                    save_deferral.then(function(result) {
+                        def_process_save.resolve(result);
+                    }).fail(function() {
+                        def_process_save.reject();
+                    });
                 }
-                return save_deferral;
-            }
+            });
         } catch (e) {
             console.error(e);
-            return $.Deferred().reject();
+            return def_process_save.reject();
         }
+        return def_process_save;
     },
     on_invalid: function() {
         var warnings = _(this.fields).chain()
@@ -1081,12 +1122,8 @@ var FormView = View.extend(common.FieldManagerMixin, {
             .value();
         var d = new Dialog(this, {
             title: _t("Set Default"),
-            args: {
-                fields: fields,
-                conditions: conditions
-            },
             buttons: [
-                {text: _t("Close"), click: function () { d.close(); }},
+                {text: _t("Close"), close: true},
                 {text: _t("Save default"), click: function () {
                     var $defaults = d.$el.find('#formview_default_fields');
                     var field_to_set = $defaults.val();
@@ -1108,6 +1145,10 @@ var FormView = View.extend(common.FieldManagerMixin, {
                 }}
             ]
         });
+        d.args = {
+            fields: fields,
+            conditions: conditions
+        };
         d.template = 'FormView.set_default';
         d.open();
     },
@@ -1250,7 +1291,7 @@ var FormRenderingEngine = FormRenderingEngineInterface.extend({
             }
             var obj = self.fields_registry.get_any([$elem.attr('widget'), self.fvg.fields[name].type]);
             if (!obj) {
-                throw new Error(_.str.sprintf(_t("Widget type '%s' is not implemented"), $elem.attr('widget')));
+                throw new Error(_.str.sprintf(_t("Widget type '%s' is not implemented"), $elem.attr('widget') || self.fvg.fields[name].type ));
             }
             var w = new (obj)(self.view, utils.xml_to_json($elem[0]));
             var $label = self.labels[$elem.attr("name")];

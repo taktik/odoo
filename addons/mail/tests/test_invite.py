@@ -1,24 +1,24 @@
 # -*- coding: utf-8 -*-
 
-from openerp.addons.mail.tests.common import TestMail
+from .common import TestMail
 from openerp.tools import mute_logger
 
 
 class TestInvite(TestMail):
 
-    @mute_logger('openerp.addons.mail.mail_mail')
+    @mute_logger('openerp.addons.mail.models.mail_mail')
     def test_invite_email(self):
         mail_invite = self.env['mail.wizard.invite'].with_context({
-            'default_res_model': 'mail.group',
+            'default_res_model': 'mail.channel',
             'default_res_id': self.group_pigs.id
         }).sudo(self.user_employee.id).create({
-            'partner_ids': [(4, self.user_portal.partner_id.id), (4, self.user_employee_2.partner_id.id)],
+            'partner_ids': [(4, self.user_portal.partner_id.id), (4, self.partner_1.id)],
             'send_mail': True})
         mail_invite.add_followers()
 
         # Test: Pigs followers should contain Admin, Bert
         self.assertEqual(self.group_pigs.message_follower_ids,
-                         self.user_portal.partner_id | self.user_employee_2.partner_id,
+                         self.user_portal.partner_id | self.partner_1,
                          'invite wizard: Pigs followers after invite is incorrect, should be Admin + added follower')
 
         # Test: (pretend to) send email and check subject, body

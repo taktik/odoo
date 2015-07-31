@@ -1,24 +1,5 @@
 # -*- encoding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2009 Tiny SPRL (<http://tiny.be>). All Rights Reserved
-#    $Id$
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
     'name': 'Recruitment Process',
@@ -45,21 +26,21 @@ You can define the different phases of interviews and easily rate the applicant 
         'fetchmail',
         'web_kanban_gauge',
         'utm',
+        'document',
     ],
     'data': [
-        'wizard/hr_recruitment_create_partner_job_view.xml',
-        'hr_recruitment_view.xml',
-        'hr_recruitment_menu.xml',
         'security/hr_recruitment_security.xml',
         'security/ir.model.access.csv',
-        'report/hr_recruitment_report_view.xml',
-        'hr_recruitment_installer_view.xml',
-        'res_config_view.xml',
-        'survey_data_recruitment.xml',
-        'hr_recruitment_data.xml',
-        'views/hr_recruitment.xml',
+        'data/survey_survey_data.xml',
+        'data/hr_recruitment_data.xml',
+        'views/hr_recruitment_views.xml',
+        'report/hr_recruitment_report_views.xml',
+        'views/hr_recruitment_config_settings_views.xml',
+        'views/hr_recruitment_templates.xml',
+        'views/hr_department_views.xml',
+        'views/hr_job_views.xml',
     ],
-    'demo': ['hr_recruitment_demo.xml'],
+    'demo': ['data/hr_recruitment_demo.xml'],
     'test': ['test/recruitment_process.yml'],
     'installable': True,
     'auto_install': False,

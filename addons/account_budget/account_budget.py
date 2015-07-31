@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2010 Tiny SPRL (<http://tiny.be>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date, datetime
 
@@ -45,9 +27,8 @@ class account_budget_post(osv.osv):
     _name = "account.budget.post"
     _description = "Budgetary Position"
     _columns = {
-        'code': fields.char('Code', size=64, required=True),
         'name': fields.char('Name', required=True),
-        'account_ids': fields.many2many('account.account', 'account_budget_rel', 'budget_id', 'account_id', 'Accounts'),
+        'account_ids': fields.many2many('account.account', 'account_budget_rel', 'budget_id', 'account_id', 'Accounts', domain=[('deprecated', '=', False)]),
         'crossovered_budget_line': fields.one2many('crossovered.budget.lines', 'general_budget_id', 'Budget Lines'),
         'company_id': fields.many2one('res.company', 'Company', required=True),
     }
@@ -61,15 +42,14 @@ class account_budget_post(osv.osv):
 class crossovered_budget(osv.osv):
     _name = "crossovered.budget"
     _description = "Budget"
+    _inherit = ['mail.thread']
 
     _columns = {
-        'name': fields.char('Name', required=True, states={'done':[('readonly',True)]}),
-        'code': fields.char('Code', size=16, required=True, states={'done':[('readonly',True)]}),
-        'creating_user_id': fields.many2one('res.users', 'Responsible User'),
-        'validating_user_id': fields.many2one('res.users', 'Validate User', readonly=True),
+        'name': fields.char('Budget Name', required=True, states={'done':[('readonly',True)]}),
+        'creating_user_id': fields.many2one('res.users', 'Responsible'),
         'date_from': fields.date('Start Date', required=True, states={'done':[('readonly',True)]}),
         'date_to': fields.date('End Date', required=True, states={'done':[('readonly',True)]}),
-        'state' : fields.selection([('draft','Draft'),('cancel', 'Cancelled'),('confirm','Confirmed'),('validate','Validated'),('done','Done')], 'Status', select=True, required=True, readonly=True, copy=False),
+        'state' : fields.selection([('draft','Draft'),('cancel', 'Cancelled'),('confirm','Confirmed'),('validate','Validated'),('done','Done')], 'Status', select=True, required=True, readonly=True, copy=False, track_visibility='always'),
         'crossovered_budget_line': fields.one2many('crossovered.budget.lines', 'crossovered_budget_id', 'Budget Lines', states={'done':[('readonly',True)]}, copy=True),
         'company_id': fields.many2one('res.company', 'Company', required=True),
     }
@@ -95,7 +75,6 @@ class crossovered_budget(osv.osv):
     def budget_validate(self, cr, uid, ids, *args):
         self.write(cr, uid, ids, {
             'state': 'validate',
-            'validating_user_id': uid,
         })
         return True
 
@@ -117,7 +96,7 @@ class crossovered_budget_lines(osv.osv):
     def _prac_amt(self, cr, uid, ids, context=None):
         res = {}
         result = 0.0
-        if context is None: 
+        if context is None:
             context = {}
         for line in self.browse(cr, uid, ids, context=context):
             acc_ids = [x.id for x in line.general_budget_id.account_ids]
@@ -194,10 +173,10 @@ class crossovered_budget_lines(osv.osv):
         'date_from': fields.date('Start Date', required=True),
         'date_to': fields.date('End Date', required=True),
         'paid_date': fields.date('Paid Date'),
-        'planned_amount':fields.float('Planned Amount', required=True, digits_compute=dp.get_precision('Account')),
-        'practical_amount':fields.function(_prac, string='Practical Amount', type='float', digits_compute=dp.get_precision('Account')),
-        'theoritical_amount':fields.function(_theo, string='Theoretical Amount', type='float', digits_compute=dp.get_precision('Account')),
-        'percentage':fields.function(_perc, string='Percentage', type='float'),
+        'planned_amount':fields.float('Planned Amount', required=True, digits=0),
+        'practical_amount':fields.function(_prac, string='Practical Amount', type='float', digits=0),
+        'theoritical_amount':fields.function(_theo, string='Theoretical Amount', type='float', digits=0),
+        'percentage':fields.function(_perc, string='Achievement', type='float'),
         'company_id': fields.related('crossovered_budget_id', 'company_id', type='many2one', relation='res.company', string='Company', store=True, readonly=True)
     }
 

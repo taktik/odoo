@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2013 OpenERP SA (<http://www.openerp.com>)
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>
-#
-##############################################################################
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from openerp import SUPERUSER_ID
 from openerp.osv import fields, osv
@@ -182,7 +164,7 @@ class gamification_challenge(osv.Model):
                 ('yearly', 'Yearly')
             ],
             string="Report Frequency", required=True),
-        'report_message_group_id': fields.many2one('mail.group',
+        'report_message_group_id': fields.many2one('mail.channel',
             string='Send a copy to',
             help='Group that will receive a copy of the report in addition to the user'),
         'report_template_id': fields.many2one('mail.template', string="Report Template", required=True),
@@ -644,7 +626,7 @@ class gamification_challenge(osv.Model):
                 context=context,
                 subtype='mail.mt_comment')
             if challenge.report_message_group_id:
-                self.pool.get('mail.group').message_post(cr, uid, challenge.report_message_group_id.id,
+                self.pool.get('mail.channel').message_post(cr, uid, challenge.report_message_group_id.id,
                     body=body_html,
                     context=context,
                     subtype='mail.mt_comment')
@@ -666,7 +648,7 @@ class gamification_challenge(osv.Model):
                                   context=context,
                                   subtype='mail.mt_comment')
                 if challenge.report_message_group_id:
-                    self.pool.get('mail.group').message_post(cr, uid, challenge.report_message_group_id.id,
+                    self.pool.get('mail.channel').message_post(cr, uid, challenge.report_message_group_id.id,
                                                              body=body_html,
                                                              context=context,
                                                              subtype='mail.mt_comment')

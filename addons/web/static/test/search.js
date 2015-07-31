@@ -339,7 +339,7 @@ odoo.define_section('search.defaults', ['web.search_inputs', 'web.SearchView', '
         var ManyToOneField =  core.search_widgets_registry.get('many2one');
         var Facet = SearchView.Facet;
 
-        var view = {inputs: []}, id = 4;
+        var view = {inputs: [], dataset: {get_context: function () {}}}, id = 4;
         var f = new ManyToOneField(
             {attrs: {name: 'dummy', string: 'Dummy'}},
             {relation: 'dummy.model.name'},
@@ -375,7 +375,7 @@ odoo.define_section('search.defaults', ['web.search_inputs', 'web.SearchView', '
         var ManyToOneField =  core.search_widgets_registry.get('many2one');
         var Facet = SearchView.Facet;
 
-        var view = {inputs: []}, id = 5;
+        var view = {inputs: [], dataset: {get_context: function () {}}}, id = 5;
         var f = new ManyToOneField(
             {attrs: {name: 'dummy', string: 'Dummy'}},
             {relation: 'dummy.model.name'},
@@ -402,7 +402,7 @@ odoo.define_section('search.defaults', ['web.search_inputs', 'web.SearchView', '
 
         var ManyToOneField =  core.search_widgets_registry.get('many2one');
 
-        var view = {inputs: []}, id = 4;
+        var view = {inputs: [], dataset: {get_context: function () {}}}, id = 4;
         var f = new ManyToOneField(
             {attrs: {name: 'dummy', string: 'Dummy'}},
             {relation: 'dummy.model.name'},
@@ -1203,7 +1203,7 @@ odoo.define_section('search.serialization', ['web.search_inputs', 'web.SearchVie
                    "filters menu has been drawn");
                 assert.ok(view.$buttons.find('.group-by-menu').length,
                    "group by menu has been drawn");
-                assert.ok(view.$buttons.find('.favorites-menu').length,
+                assert.ok(view.$buttons.find('.o_favorites_menu').length,
                    "favorites menu has been drawn");
             });
     });
@@ -1235,7 +1235,7 @@ odoo.define_section('search.filters', ['web.search_inputs', 'web.SearchView', 'w
         return view.appendTo($fix)
             .done(function () {
                 var $filters = view.$buttons.find('.filters-menu li'),
-                    $favorites = view.$buttons.find('.favorites-menu li'),
+                    $favorites = view.$buttons.find('.o_favorites_menu li'),
                     $groupby = view.$buttons.find('.group-by-menu li');
                 // 3 filters, 1 separator, 1 button add filter, 
                 // 1 filter condition menu, 1 apply button
