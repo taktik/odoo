@@ -419,6 +419,9 @@ class ConnectionPool(object):
                     if not cnx.closed:
                         cnx.close()
                     continue
+                except psycopg2.DatabaseError:
+                    _logger.warning('Could not borrow connection (DatabaseError) at index %d: %r', i, cnx.dsn)
+                    continue
                 self._connections.pop(i)
                 self._connections.append((cnx, True))
                 self._debug('Existing connection found at index %d', i)
