@@ -28,6 +28,67 @@ if(!$('.website_forum').length) {
         }
     });
 
+    // Extended user biography toogle
+    $('.o_forum_user_info').hover(
+        function () {
+           $(this).parent().find('.o_forum_user_bio_expand').delay(500).toggle('fast');
+        },
+        function () {
+            $(this).parent().find('.o_forum_user_bio_expand').clearQueue();
+        }
+    );
+
+    $('.o_forum_user_bio_expand').hover(
+        function () {},
+        function () {
+            $(this).fadeOut('fast');
+        }
+    );
+
+    $('.flag').not('.karma_required').on('click', function (ev) {
+        ev.preventDefault();
+        var $link = $(ev.currentTarget);
+        ajax.jsonRpc($link.data('href'), 'call', {})
+            .then(function (data) {
+                if(data.error) {
+                    var $warning;
+                    if(data.error == 'anonymous_user') {
+                        $warning = $('<div class="alert alert-danger alert-dismissable oe_forum_alert" id="flag_alert">'+
+                            '<button type="button" class="close notification_close" data-dismiss="alert" aria-hidden="true">&times;</button>'+
+                            _t('Sorry you must be logged to flag a post') +
+                            '</div>');
+                    } else if(data.error == 'post_already_flagged') {
+                        $warning = $('<div class="alert alert-danger alert-dismissable oe_forum_alert" id="flag_alert">'+
+                            '<button type="button" class="close notification_close" data-dismiss="alert" aria-hidden="true">&times;</button>'+
+                            _t('This post is already flagged') +
+                            '</div>');
+                    } else if(data.error == 'post_non_flaggable') {
+                        $warning = $('<div class="alert alert-danger alert-dismissable oe_forum_alert" id="flag_alert">'+
+                            '<button type="button" class="close notification_close" data-dismiss="alert" aria-hidden="true">&times;</button>'+
+                            _t('This post can not be flagged') +
+                            '</div>');
+                    }
+                    var flag_alert = $link.parent().find("#flag_alert");
+                    if (flag_alert.length === 0) {
+                        $link.parent().append($warning);
+                    }
+                } else if(data.success) {
+                    var elem = $link;
+                    if(data.success == 'post_flagged_moderator') {
+                        elem.html(' Flagged');
+                        var c = parseInt($('#count_flagged_posts').html(), 10);
+                        c++;
+                        $('#count_flagged_posts').html(c);
+                    } else if(data.success == 'post_flagged_non_moderator') {
+                        elem.html(' Flagged');
+                        var forum_answer = elem.closest('.forum_answer');
+                        forum_answer.fadeIn(1000);
+                        forum_answer.slideUp(1000);
+                    }
+                }
+            });
+    });
+
     $('.vote_up,.vote_down').not('.karma_required').on('click', function (ev) {
         ev.preventDefault();
         var $link = $(ev.currentTarget);
@@ -245,7 +306,8 @@ if(!$('.website_forum').length) {
                 ['style', ['style']],
                 ['font', ['bold', 'italic', 'underline', 'clear']],
                 ['para', ['ul', 'ol', 'paragraph']],
-                ['table', ['table']]
+                ['table', ['table']],
+                ['history', ['undo', 'redo']],
             ];
         if (parseInt($("#karma").val()) >= editor_karma) {
             toolbar.push(['insert', ['link', 'picture']]);
