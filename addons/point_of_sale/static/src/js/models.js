@@ -885,7 +885,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
                     if (tax.type === "percent") {
                         tmp =  base - round_pr(base / (1 + tax.amount),currency_rounding); 
                     } else if (tax.type === "fixed") {
-                        tmp = round_pr(tax.amount * self.get_quantity(),currency_rounding);
+                        tmp = tax.amount * self.get_quantity();
                     } else {
                         throw "This type of tax is not supported by the point of sale: " + tax.type;
                     }
