@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+    <data>
+
+        <record model="ir.actions.act_window" id="act_cron_generate">
+            <field name="name">Cron Generation</field>
+            <field name="res_model">cron.generate</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+        </record>
+
+        <record model="ir.ui.view" id="view_company_multi_cron_inherit_form">
+            <field name="name">res.company.form.multi.cron.inherit</field>
+            <field name="inherit_id" ref="base.view_company_form"/>
+            <field name="model">res.company</field>
+            <field name="arch" type="xml">
+                <notebook position="inside">
+                    <page string="CRON CONFIGS">
+                        <button string="Generate cron according to workers" name="%(procurement_multi_cron.act_cron_generate)d" type="action"/>
+                    </page>
+                </notebook>
+            </field>
+        </record>
+    </data>
+</openerp>

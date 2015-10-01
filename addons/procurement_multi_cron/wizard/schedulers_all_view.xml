@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+    <data>
+
+        <!--  Run Schedulers -->
+        <record id="view_compute_schedulers_wizard_inherit_company" model="ir.ui.view">
+            <field name="model">procurement.order</field>
+            <field name="inherit_id" ref="procurement.view_compute_schedulers_wizard"/>
+            <field name="arch" type="xml">
+                <xpath expr="//footer" position="inside">
+                    sdf
+                    <field name="company_id"/>
+                </xpath>
+            </field>
+        </record>
+
+
+    </data>
+</openerp>

@@ -31,6 +31,7 @@ import openerp.addons.decimal_precision as dp
 from openerp.osv.orm import browse_record_list, browse_record, browse_null
 from openerp.tools import DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FORMAT, DATETIME_FORMATS_MAP
 from openerp.tools.float_utils import float_compare
+#from profilehooks import profile
 
 class purchase_order(osv.osv):
 
@@ -1296,6 +1297,7 @@ class procurement_order(osv.osv):
                 purchase_line_obj.unlink(cr, uid, [procurement.purchase_line_id.id], context=context)
         return super(procurement_order, self).propagate_cancel(cr, uid, procurement, context=context)
 
+
     def _run(self, cr, uid, procurement, context=None):
         if procurement.rule_id and procurement.rule_id.action == 'buy':
             #make a purchase order for the procurement
@@ -1391,6 +1393,7 @@ class procurement_order(osv.osv):
             return supplierinfo.browse(cr, uid, company_supplier[0], context=context).name
         return procurement.product_id.seller_id
 
+    #@profile(immediate=True)
     def _get_po_line_values_from_proc(self, cr, uid, procurement, partner, company, schedule_date, context=None):
         if context is None:
             context = {}
@@ -1403,7 +1406,7 @@ class procurement_order(osv.osv):
         seller_qty = procurement.product_id.seller_qty if procurement.location_id.usage != 'customer' else 0.0
         pricelist_id = partner.property_product_pricelist_purchase.id
         uom_id = procurement.product_id.uom_po_id.id
-        qty = uom_obj._compute_qty(cr, uid, procurement.product_uom.id, procurement.product_qty, uom_id)
+        qty = uom_obj._compute_qty(cr, uid, procurement.product_uom.id, procurement.product_qty, uom_id) #C'est faux si ce n'est pas une nouvelle ligne
         if seller_qty:
             qty = max(qty, seller_qty)
         price = pricelist_obj.price_get(cr, uid, [pricelist_id], procurement.product_id.id, qty, partner.id, {'uom': uom_id})[pricelist_id]

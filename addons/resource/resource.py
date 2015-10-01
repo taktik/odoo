@@ -347,7 +347,7 @@ class resource_calendar(osv.osv):
 
         # find leave intervals
         if leaves is None and compute_leaves:
-            leaves = self.get_leave_intervals(cr, uid, id, resource_id=resource_id, context=None)
+            leaves = self.get_leave_intervals(cr, uid, id, resource_id=resource_id, context=context)
 
         # filter according to leaves
         for interval in working_intervals:
@@ -532,9 +532,12 @@ class resource_calendar(osv.osv):
         intervals = []
         planned_days = 0
         iterations = 0
-        current_datetime = day_date.replace(hour=0, minute=0, second=0)
+        if backwards:
+            current_datetime = day_date.replace(hour=23, minute=59, second=59)
+        else:
+            current_datetime = day_date.replace(hour=0, minute=0, second=0)
 
-        while planned_days < days and iterations < 1000:
+        while planned_days < days and iterations < 100:
             working_intervals = self.get_working_intervals_of_day(
                 cr, uid, id, current_datetime,
                 compute_leaves=compute_leaves, resource_id=resource_id,

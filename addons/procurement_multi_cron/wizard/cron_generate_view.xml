@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+    <data>
+        <!--  CRON Generate according to number of workers -->
+        <record id="view_compute_schedulers_wizard" model="ir.ui.view">
+            <field name="name">Generate CRONS for scheduler according to number of workers</field>
+            <field name="model">cron.generate</field>
+            <field name="arch" type="xml">
+                <form string="Cron Generation">
+                    <p>
+                        Put the number of crons as the number of workers available for cron and divide
+                        companies among them.  Specify the date as first time they need to be executed.
+                        The days after, the same time will be used.
+                        <field name="execution_date"/>
+                    </p>
+                    <footer>
+                        <button name="generate" string="Generate CRONs" type="object" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+    </data>
+</openerp>

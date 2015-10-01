@@ -196,7 +196,7 @@ class procurement_order(osv.osv):
 
     def run(self, cr, uid, ids, autocommit=False, context=None):
         for procurement_id in ids:
-            #we intentionnaly do the browse under the for loop to avoid caching all ids which would be resource greedy
+            #we intentionally do the browse under the for loop to avoid caching all ids which would be resource greedy
             #and useless as we'll make a refresh later that will invalidate all the cache (and thus the next iteration
             #will fetch all the ids again) 
             procurement = self.browse(cr, uid, procurement_id, context=context)
@@ -267,6 +267,7 @@ class procurement_order(osv.osv):
                 self.write(cr, uid, [procurement.id], {'rule_id': rule_id}, context=context)
                 return True
         return False
+
 
     def _run(self, cr, uid, procurement, context=None):
         '''This method implements the resolution of the given procurement

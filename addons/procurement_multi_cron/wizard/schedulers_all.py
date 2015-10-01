@@ -30,10 +30,12 @@ from openerp.api import Environment
 _logger = logging.getLogger(__name__)
 
 class procurement_compute_all(osv.osv_memory):
-    _name = 'procurement.order.compute.all'
+    _inherit = 'procurement.order.compute.all'
     _description = 'Compute all schedulers'
 
-
+    _columns = {
+        'company_id': fields.many2one('res.company', 'Company'),
+    }
 
     def _procure_calculation_all(self, cr, uid, ids, context=None):
         """
@@ -45,25 +47,16 @@ class procurement_compute_all(osv.osv_memory):
         """
         with Environment.manage():
             proc_obj = self.pool.get('procurement.order')
-            #As this function is in a new thread, i need to open a new cursor, because the old one may be closed
-
+            #As this function is in a new thread, I need to open a new cursor, because the old one may be closed
             new_cr = self.pool.cursor()
-            scheduler_cron_id = self.pool['ir.model.data'].get_object_reference(new_cr, SUPERUSER_ID, 'procurement', 'ir_cron_scheduler_action')[1]
-            # Avoid to run the scheduler multiple times in the same time
-            try:
-                with tools.mute_logger('openerp.sql_db'):
-                    new_cr.execute("SELECT id FROM ir_cron WHERE id = %s FOR UPDATE NOWAIT", (scheduler_cron_id,))
-            except Exception:
-                _logger.info('Attempt to run procurement scheduler aborted, as already running')
-                new_cr.rollback()
-                new_cr.close()
-                return {}
             user = self.pool.get('res.users').browse(new_cr, uid, uid, context=context)
-            data = self.browse(new_cr, uid, ids[0])
-
-            comps = [x.id for x in user.company_ids]
-            for comp in comps:
-                proc_obj.run_scheduler(new_cr, uid, use_new_cursor=new_cr.dbname, company_id = comp, context=context)
+            data = self.browse(new_cr, uid, ids[0], context=context)
+            if data.company_id:
+                proc_obj.run_scheduler_lock(new_cr, uid, use_new_cursor=new_cr.dbname, company_id = data.company_id.id, context=context)
+            else:
+                comps = [x.id for x in user.company_ids]
+                for comp in comps:
+                    proc_obj.run_scheduler_lock(new_cr, uid, use_new_cursor=new_cr.dbname, company_id = comp, context=context)
 
             #close the new cursor
             new_cr.close()
