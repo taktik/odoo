@@ -1,6 +1,9 @@
-============================
-Odoo Technical Documentation
-============================
+:main-title: doc
+:banner: banners/index.jpg
+
+=====
+Index
+=====
 
 .. todo:: what's the documentation's license?
 
@@ -11,8 +14,10 @@ Odoo Technical Documentation
     :maxdepth: 2
 
     tutorials
-    reference
     api_integration
+    setup
+    reference
+    business
 
 .. ifconfig:: todo_include_todos
 

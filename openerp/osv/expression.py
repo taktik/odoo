@@ -135,9 +135,11 @@ import collections
 
 import logging
 import traceback
+from zlib import crc32
 
 import openerp.modules
 from . import fields
+from .. import SUPERUSER_ID
 from ..models import MAGIC_COLUMNS, BaseModel
 import openerp.tools as tools
 
@@ -342,7 +344,16 @@ def generate_table_alias(src_table_alias, joined_tables=[]):
         return '%s' % alias, '%s' % _quote(alias)
     for link in joined_tables:
         alias += '__' + link[1]
-    assert len(alias) < 64, 'Table alias name %s is longer than the 64 characters size accepted by default in postgresql.' % alias
+    # Use an alternate alias scheme if length exceeds the PostgreSQL limit
+    # of 63 characters.
+    if len(alias) >= 64:
+        # We have to fit a crc32 hash and one underscore
+        # into a 63 character alias. The remaining space we can use to add
+        # a human readable prefix.
+        alias_hash = hex(crc32(alias))[2:]
+        ALIAS_PREFIX_LENGTH = 63 - len(alias_hash) - 1
+        alias = "%s_%s" % (
+            alias[:ALIAS_PREFIX_LENGTH], alias_hash)
     return '%s' % alias, '%s as %s' % (_quote(joined_tables[-1][0]), _quote(alias))
 
 
@@ -401,7 +412,7 @@ def is_leaf(element, internal=False):
         and len(element) == 3 \
         and element[1] in INTERNAL_OPS \
         and ((isinstance(element[0], basestring) and element[0])
-             or element in (TRUE_LEAF, FALSE_LEAF))
+             or tuple(element) in (TRUE_LEAF, FALSE_LEAF))
 
 
 # --------------------------------------------------
@@ -490,7 +501,7 @@ class ExtendedLeaf(object):
     #       i.e.: many2one: 'state_id': current field name
     # --------------------------------------------------
 
-    def __init__(self, leaf, model, join_context=None):
+    def __init__(self, leaf, model, join_context=None, internal=False):
         """ Initialize the ExtendedLeaf
 
             :attr [string, tuple] leaf: operator or tuple-formatted domain
@@ -529,7 +540,7 @@ class ExtendedLeaf(object):
             self._models.append(item[0])
         self._models.append(model)
         # check validity
-        self.check_leaf()
+        self.check_leaf(internal)
 
     def __str__(self):
         return '<osv.ExtendedLeaf: %s on %s (ctx: %s)>' % (str(self.leaf), self.model._table, ','.join(self._get_context_debug()))
@@ -575,7 +586,7 @@ class ExtendedLeaf(object):
     # Leaf manipulation
     # --------------------------------------------------
 
-    def check_leaf(self):
+    def check_leaf(self, internal=False):
         """ Leaf validity rules:
             - a valid leaf is an operator or a leaf
             - a valid leaf has a field objects unless
@@ -584,7 +595,7 @@ class ExtendedLeaf(object):
                 - left is id, operator is 'child_of'
                 - left is in MAGIC_COLUMNS
         """
-        if not is_operator(self.leaf) and not is_leaf(self.leaf, True):
+        if not is_operator(self.leaf) and not is_leaf(self.leaf, internal):
             raise ValueError("Invalid leaf %s" % str(self.leaf))
 
     def is_operator(self):
@@ -603,14 +614,14 @@ class ExtendedLeaf(object):
         self.leaf = normalize_leaf(self.leaf)
         return True
 
-def create_substitution_leaf(leaf, new_elements, new_model=None):
+def create_substitution_leaf(leaf, new_elements, new_model=None, internal=False):
     """ From a leaf, create a new leaf (based on the new_elements tuple
         and new_model), that will have the same join context. Used to
         insert equivalent leafs in the processing stack. """
     if new_model is None:
         new_model = leaf.model
     new_join_context = [tuple(context) for context in leaf.join_context]
-    new_leaf = ExtendedLeaf(new_elements, new_model, join_context=new_join_context)
+    new_leaf = ExtendedLeaf(new_elements, new_model, join_context=new_join_context, internal=internal)
     return new_leaf
 
 class expression(object):
@@ -941,11 +952,16 @@ class expression(object):
                             call_null = False
                             push(create_substitution_leaf(leaf, FALSE_LEAF, model))
                     else:
-                        ids2 = select_from_where(cr, column._fields_id, comodel._table, 'id', ids2, operator)
-                        if ids2:
+                        # determine ids1 <-- column._fields_id --- ids2
+                        if comodel._fields[column._fields_id].store:
+                            ids1 = select_from_where(cr, column._fields_id, comodel._table, 'id', ids2, operator)
+                        else:
+                            recs = comodel.browse(cr, SUPERUSER_ID, ids2, {'prefetch_fields': False})
+                            ids1 = recs.mapped(column._fields_id).ids
+                        if ids1:
                             call_null = False
                             o2m_op = 'not in' if operator in NEGATIVE_TERM_OPERATORS else 'in'
-                            push(create_substitution_leaf(leaf, ('id', o2m_op, ids2), model))
+                            push(create_substitution_leaf(leaf, ('id', o2m_op, ids1), model))
 
                 if call_null:
                     o2m_op = 'in' if operator in NEGATIVE_TERM_OPERATORS else 'not in'
@@ -1083,7 +1099,7 @@ class expression(object):
                         'model',
                         right,
                     )
-                    push(create_substitution_leaf(leaf, ('id', inselect_operator, (subselect, params)), model))
+                    push(create_substitution_leaf(leaf, ('id', inselect_operator, (subselect, params)), model, internal=True))
 
                 else:
                     push_result(leaf)
@@ -1208,7 +1224,7 @@ class expression(object):
                 format = need_wildcard and '%s' or model._columns[left]._symbol_set[0]
                 unaccent = self._unaccent if sql_operator.endswith('like') else lambda x: x
                 column = '%s.%s' % (table_alias, _quote(left))
-                query = '(%s%s %s %s)' % (unaccent(column), cast, sql_operator, unaccent(format))
+                query = '(%s %s %s)' % (unaccent(column + cast), sql_operator, unaccent(format))
             elif left in MAGIC_COLUMNS:
                     query = "(%s.\"%s\"%s %s %%s)" % (table_alias, left, cast, sql_operator)
                     params = right

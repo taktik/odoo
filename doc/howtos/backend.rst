@@ -1,8 +1,14 @@
+:banner: banners/build_a_module.jpg
+
 .. queue:: backend/series
 
 =================
 Building a Module
 =================
+
+.. warning::
+
+    This tutorial requires :ref:`having installed Odoo <setup/install>`
 
 Start/Stop the Odoo server
 ==========================
@@ -70,31 +76,9 @@ option.
     most command-line options can also be set using :ref:`a configuration
     file <reference/cmdline/config>`
 
-An Odoo module is declared by its :ref:`manifest <reference/module/manifest>`. It
-is mandatory and contains a single python dictionary declaring various
-metadata for the module: the module's name and description, list of Odoo
-modules required for this one to work properly, references to data files, …
-
-The manifest's general structure is::
-
-    {
-        'name': "MyModule",
-        'version': '1.0',
-        'depends': ['base'],
-        'author': "Author Name",
-        'category': 'Category',
-        'description': """
-        Description text
-        """,
-        # data files always loaded at installation
-        'data': [
-            'mymodule_view.xml',
-        ],
-        # data files containing optionally loaded demonstration data
-        'demo': [
-            'demo_data.xml',
-        ],
-    }
+An Odoo module is declared by its :ref:`manifest <reference/module/manifest>`.
+See the :ref:`manifest documentation <reference/module/manifest>` information
+about it.
 
 A module is also a
 `Python package <http://docs.python.org/2/tutorial/modules.html#packages>`_
@@ -104,15 +88,15 @@ files in the module.
 For instance, if the module has a single ``mymodule.py`` file ``__init__.py``
 might contain::
 
-    import mymodule
+    from . import mymodule
 
-Fortunately, there is a mechanism to help you set up an module. The command
-``odoo.py`` has a subcommand :ref:`scaffold <reference/cmdline/scaffold>` to
-create an empty module:
+Odoo provides a mechanism to help set up a new module, :ref:`odoo.py
+<reference/cmdline/server>` has a subcommand :ref:`scaffold
+<reference/cmdline/scaffold>` to create an empty module:
 
-.. code:: bash
+.. code-block:: console
 
-    odoo.py scaffold <module name> <where to put it>
+    $ odoo.py scaffold <module name> <where to put it>
 
 The command creates a subdirectory for your module, and automatically creates a
 bunch of standard files for a module. Most of them simply contain commented code
@@ -639,12 +623,12 @@ instead of a single view its ``arch`` field is composed of any number of
     <!-- improved idea categories list -->
     <record id="idea_category_list2" model="ir.ui.view">
         <field name="name">id.category.list2</field>
-        <field name="model">ir.ui.view</field>
+        <field name="model">idea.category</field>
         <field name="inherit_id" ref="id_category_list"/>
         <field name="arch" type="xml">
-            <!-- find field description inside tree, and add the field
+            <!-- find field description and add the field
                  idea_ids after it -->
-            <xpath expr="/tree/field[@name='description']" position="after">
+            <xpath expr="//field[@name='description']" position="after">
               <field name="idea_ids" string="Number of ideas"/>
             </xpath>
         </field>
@@ -667,6 +651,22 @@ instead of a single view its ``arch`` field is composed of any number of
     ``attributes``
         alters the attributes of the matched element using special
         ``attribute`` elements in the ``xpath``'s body
+
+.. tip::
+
+    When matching a single element, the ``position`` attribute can be set directly
+    on the element to be found. Both inheritances below will give the same result.
+
+    .. code-block:: xml
+
+        <xpath expr="//field[@name='description']" position="after">
+            <field name="idea_ids" />
+        </xpath>
+
+        <field name="description" position="after">
+            <field name="idea_ids" />
+        </field>
+
 
 .. exercise:: Alter existing content
 
@@ -782,17 +782,11 @@ method should simply set the value of the field to compute on every record in
 
         name = fields.Char(compute='_compute_name')
 
+        @api.multi
         def _compute_name(self):
             for record in self:
                 record.name = str(random.randint(1, 1e6))
 
-Our compute method is very simple: it loops over ``self`` and performs the same
-operation on every record. We can make it slightly simpler by using the
-decorator :func:`~openerp.api.one` to automatically loop on the collection::
-
-        @api.one
-        def _compute_name(self):
-            self.name = str(random.randint(1, 1e6))
 
 Dependencies
 ------------
@@ -811,10 +805,10 @@ field whenever some of its dependencies have been modified::
         name = fields.Char(compute='_compute_name')
         value = fields.Integer()
 
-        @api.one
         @api.depends('value')
         def _compute_name(self):
-            self.name = "Record with value %s" % self.value
+            for record in self:
+                self.name = "Record with value %s" % self.value
 
 .. exercise:: Computed fields
 
@@ -1091,7 +1085,7 @@ predefined searches. Filters must have one of the following attributes:
                 domain="[('inventor_id', '=', uid)]"/>
         <group string="Group By">
             <filter name="group_by_inventor" string="Inventor"
-                    context="{'group_by': 'inventor'}"/>
+                    context="{'group_by': 'inventor_id'}"/>
         </group>
     </search>
 
@@ -1789,7 +1783,7 @@ with the standard Python libraries ``urllib2`` and ``json``::
     note_id = call(url, "object", "execute", DB, uid, PASS, 'note.note', 'create', args)
 
 Here is the same program, using the library
-`jsonrpclib <https://pypi.python.org/pypi/jsonrpclib>`::
+`jsonrpclib <https://pypi.python.org/pypi/jsonrpclib>`_::
 
     import jsonrpclib
 

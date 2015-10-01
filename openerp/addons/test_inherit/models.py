@@ -25,10 +25,9 @@ class mother(models.Model):
 # in the child object
 class daughter(models.Model):
     _name = 'test.inherit.daughter'
-    _inherits = {'test.inherit.mother': 'template_id'}
 
     template_id = fields.Many2one('test.inherit.mother', 'Template',
-                                  required=True, ondelete='cascade')
+                                  delegate=True, required=True, ondelete='cascade')
     field_in_daughter = fields.Char('Field1')
 
 
@@ -39,6 +38,7 @@ class mother(models.Model):
     _inherit = 'test.inherit.mother'
 
     field_in_mother = fields.Char()
+    partner_id = fields.Many2one('res.partner')
 
     # extend the name field: make it required and change its default value
     name = fields.Char(required=True, default='Bar')
@@ -71,5 +71,12 @@ class daughter(models.Model):
 
     # change the default value of an inherited field
     name = fields.Char(default='Baz')
+
+
+class res_partner(models.Model):
+    _inherit = 'res.partner'
+
+    # define a one2many field based on the inherited field partner_id
+    daughter_ids = fields.One2many('test.inherit.daughter', 'partner_id')
 
 # vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:

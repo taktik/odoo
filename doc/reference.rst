@@ -17,7 +17,8 @@ Reference
     reference/http
     reference/qweb
     reference/javascript
-
     reference/translations
     reference/reports
     reference/workflows
+    reference/guidelines
+    reference/upgrade_api
