@@ -346,6 +346,10 @@ openerp.web_graph.PivotTable = openerp.web.Class.extend({
             return self.isEqual(header.path, _.initial(path, 1));
         });
 
+        if(!parent || !parent.children) {
+           return '';
+        }
+
         var previous = parent.children.length ? _.last(parent.children) : parent;
         headers.splice(headers.indexOf(previous) + 1, 0, hdr);
         parent.children.push(hdr);
