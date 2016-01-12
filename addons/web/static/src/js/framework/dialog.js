@@ -33,7 +33,7 @@ var Dialog = Widget.extend({
         this._super(parent);
 
         options = _.defaults(options || {}, {
-            title: _t('Odoo'), subtitle: '',
+            title: _t('OpenMedia'), subtitle: '',
             size: 'large',
             dialogClass: '',
             $content: false,
