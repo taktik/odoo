@@ -1319,6 +1319,18 @@ class procurement_order(osv.osv):
             'taxes_id': [(6, 0, taxes)],
         }
 
+    def _get_available_po_line_vals(self, po_line, line_vals):
+        return {
+            'product_qty': po_line.product_qty + line_vals['product_qty']
+        }
+
+    def _domain_available_po_line(self, po_id, line_vals):
+        return [
+            ('order_id', '=', po_id),
+            ('product_id', '=', line_vals['product_id']),
+            ('product_uom', '=', line_vals['product_uom'])
+        ]
+
     def make_po(self, cr, uid, ids, context=None):
         """ Resolve the purchase from procurement, which may result in a new PO creation, a new PO line creation or a quantity change on existing PO line.
         Note that some operations (as the PO creation) are made as SUPERUSER because the current user may not have rights to do it (mto product launched by a sale for example)
@@ -1353,10 +1365,12 @@ class procurement_order(osv.osv):
                     if datetime.strptime(po_rec.date_order, DEFAULT_SERVER_DATETIME_FORMAT) > purchase_date:
                         po_obj.write(cr, uid, [po_id], {'date_order': purchase_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)}, context=context)
                     #look for any other PO line in the selected PO with same product and UoM to sum quantities instead of creating a new po line
-                    available_po_line_ids = po_line_obj.search(cr, uid, [('order_id', '=', po_id), ('product_id', '=', line_vals['product_id']), ('product_uom', '=', line_vals['product_uom'])], context=context)
+                    po_line_domain = self._domain_available_po_line(po_id, line_vals)
+                    available_po_line_ids = po_line_obj.search(cr, uid, po_line_domain, context=context)
                     if available_po_line_ids:
                         po_line = po_line_obj.browse(cr, uid, available_po_line_ids[0], context=context)
-                        po_line_obj.write(cr, SUPERUSER_ID, po_line.id, {'product_qty': po_line.product_qty + line_vals['product_qty']}, context=context)
+                        po_line_vals = self._get_available_po_line_vals(po_line, line_vals)
+                        po_line_obj.write(cr, SUPERUSER_ID, po_line.id, po_line_vals, context=context)
                         po_line_id = po_line.id
                         sum_po_line_ids.append(procurement.id)
                     else:
