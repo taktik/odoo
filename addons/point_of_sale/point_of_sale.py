@@ -559,6 +559,8 @@ class pos_order(osv.osv):
     def _amount_line_tax(self, cr, uid, line, context=None):
         account_tax_obj = self.pool['account.tax']
         taxes_ids = [tax for tax in line.product_id.taxes_id if tax.company_id.id == line.order_id.company_id.id]
+        taxes_ids = self.pool.get('account.fiscal.position').map_tax(cr, uid, line.order_id.partner_id.property_account_position or False, taxes_ids)
+        taxes_ids = account_tax_obj.browse(cr, uid, taxes_ids)
         price = line.price_unit * (1 - (line.discount or 0.0) / 100.0)
         taxes = account_tax_obj.compute_all(cr, uid, taxes_ids, price, line.qty, product=line.product_id, partner=line.order_id.partner_id or False)['taxes']
         val = 0.0
@@ -999,7 +1001,8 @@ class pos_order(osv.osv):
                 inv_line['price_unit'] = line.price_unit
                 inv_line['discount'] = line.discount
                 inv_line['name'] = inv_name
-                inv_line['invoice_line_tax_id'] = [(6, 0, [x.id for x in line.product_id.taxes_id] )]
+                # inv_line['invoice_line_tax_id'] = [(6, 0, [x.id for x in line.product_id.taxes_id] )]
+                inv_line['invoice_line_tax_id'] = [(6, 0, inv_line['invoice_line_tax_id'])]
                 inv_line_ref.create(cr, uid, inv_line, context=context)
             inv_ref.button_reset_taxes(cr, uid, [inv_id], context=context)
             self.signal_workflow(cr, uid, [order.id], 'invoice')
@@ -1288,9 +1291,12 @@ class pos_order_line(osv.osv):
     def _amount_line_all(self, cr, uid, ids, field_names, arg, context=None):
         res = dict([(i, {}) for i in ids])
         account_tax_obj = self.pool.get('account.tax')
+        fiscalpos_obj = self.pool.get('account.fiscal.position')
         cur_obj = self.pool.get('res.currency')
         for line in self.browse(cr, uid, ids, context=context):
             taxes_ids = [ tax for tax in line.product_id.taxes_id if tax.company_id.id == line.order_id.company_id.id ]
+            taxes_ids = fiscalpos_obj.map_tax(cr, uid, line.order_id.partner_id.property_account_position or False, taxes_ids)
+            taxes_ids = account_tax_obj.browse(cr, uid, taxes_ids)
             price = line.price_unit * (1 - (line.discount or 0.0) / 100.0)
             taxes = account_tax_obj.compute_all(cr, uid, taxes_ids, price, line.qty, product=line.product_id, partner=line.order_id.partner_id or False)
 
