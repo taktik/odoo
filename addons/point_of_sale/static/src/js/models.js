@@ -392,7 +392,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
 
                     if( model.model ){
                         if (model.ids) {
-                            var records = new instance.web.Model(model.model).call('read',[ids,fields],context);
+                            var records = new instance.web.Model(model.model).call('read',[ids,fields],{context:context});
                         } else {
                             var records = new instance.web.Model(model.model).query(fields).filter(domain).context(context).all()
                         }
