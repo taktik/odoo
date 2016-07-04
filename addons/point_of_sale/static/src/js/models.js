@@ -661,6 +661,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             this.product = options.product;
             this.price   = options.product.price;
             this.quantity = 1;
+            this.quantity_uom = 1;
             this.quantityStr = '1';
             this.discount = 0;
             this.discountStr = '0';
@@ -707,18 +708,27 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
                 this.order.removeOrderline(this);
                 return;
             }else{
-                var quant = parseFloat(quantity) || 0;
                 var unit = this.get_unit();
+                var uom  = this.get_uom();
+                var fac  = (this.product.uos_coeff || 1.0);
                 if(unit){
                     if (unit.rounding) {
-                        this.quantity    = round_pr(quant, unit.rounding);
-                        this.quantityStr = this.quantity.toFixed(Math.ceil(Math.log(1.0 / unit.rounding) / Math.log(10)));
+                        this.quantity = round_di(quantity || 0, this.pos.dp['Product Unit of Measure']);
+                        this.quantityStr = this.quantity.toFixed(this.pos.dp['Product Unit of Measure']);
+                        this.quantity_uom = this.quantity;
+                        // If the unit of sale is not the same as the unit of measure, we need to make sure
+                        // that the quantity we sell is a valid measure quantity.
+                        if (unit !== uom) {
+                            this.quantity = this.quantity_uom * fac;
+                            this.quantity = round_di(this.quantity || 0, this.pos.dp['Product UoS']);
+                            this.quantityStr = this.quantity.toFixed(this.pos.dp['Product UoS']);
+                        }
                     } else {
-                        this.quantity    = round_pr(quant, 1);
+                        this.quantity    = round_pr(quantity, 1);
                         this.quantityStr = this.quantity.toFixed(0);
                     }
                 }else{
-                    this.quantity    = quant;
+                    this.quantity    = quantity;
                     this.quantityStr = '' + this.quantity;
                 }
             }
@@ -727,6 +737,9 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
         // return the quantity of product
         get_quantity: function(){
             return this.quantity;
+        },
+        get_quantity_uom: function(){
+            return this.quantity_uom;
         },
         get_quantity_str: function(){
             return this.quantityStr;
@@ -741,7 +754,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
         },
         // return the unit of measure of the product
         get_unit: function(){
-            var unit_id = this.product.uom_id;
+            var unit_id = this.product.uos_id || this.product.uom_id;
             if(!unit_id){
                 return undefined;
             }
@@ -750,6 +763,9 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
                 return undefined;
             }
             return this.pos.units_by_id[unit_id];
+        },
+        get_uom: function(){
+            return this.pos.units_by_id[this.product.uom_id[0]];
         },
         // return the product of this orderline
         get_product: function(){
@@ -782,7 +798,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             }
         },
         merge: function(orderline){
-            this.set_quantity(this.get_quantity() + orderline.get_quantity());
+            this.set_quantity(this.get_quantity_uom() + orderline.get_quantity_uom());
         },
         export_as_JSON: function() {
             return {
@@ -813,8 +829,9 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             this.price = round_di(parseFloat(price) || 0, this.pos.dp['Product Price']);
             this.trigger('change',this);
         },
-        get_unit_price: function(){
-            return this.price;
+        get_unit_price: function () {
+            var uos_fac = this.product.uos_id ? 1.0 / this.product.uos_coeff : 1.0;
+            return round_di(this.price * uos_fac, this.pos.dp['Product Price']);
         },
         get_base_price:    function(){
             var rounding = this.pos.currency.rounding;
@@ -871,7 +888,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
                     if (tax.type === "percent") {
                         tmp =  base - round_pr(base / (1 + tax.amount),currency_rounding); 
                     } else if (tax.type === "fixed") {
-                        tmp = round_pr(tax.amount * self.get_quantity(),currency_rounding);
+                        tmp = tax.amount * self.get_quantity();
                     } else {
                         throw "This type of tax is not supported by the point of sale: " + tax.type;
                     }
@@ -1026,6 +1043,7 @@ function openerp_pos_models(instance, module){ //module is instance.point_of_sal
             attr.order = this;
             var line = new module.Orderline({}, {pos: this.pos, order: this, product: product});
 
+            options.quantity = 1;
             if(options.quantity !== undefined){
                 line.set_quantity(options.quantity);
             }
