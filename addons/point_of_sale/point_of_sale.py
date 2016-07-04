@@ -499,7 +499,7 @@ class pos_session(osv.osv):
                 if (st.journal_id.type not in ['bank', 'cash']):
                     raise osv.except_osv(_('Error!'), 
                         _("The type of the journal for your payment method should be bank or cash "))
-                getattr(st, 'button_confirm_%s' % st.journal_id.type)(context=context)
+                getattr(self.pool['account.bank.statement'], 'button_confirm_%s' % st.journal_id.type)(cr, uid, [st.id], context=context)
         self._confirm_orders(cr, uid, ids, context=context)
         self.write(cr, uid, ids, {'state' : 'closed'}, context=context)
 
