@@ -16,12 +16,6 @@ import sys
 import threading
 import time
 import unittest2
-try:
-    from newrelic import agent as newrelic_agent
-except Exception:
-    pass
-
-
 import werkzeug.serving
 
 if os.name == 'posix':
@@ -447,13 +441,6 @@ class PreforkServer(CommonServer):
         self.generation = 0
         self.queue = []
         self.long_polling_pid = None
-        newrelic_config_file = config.get('newrelic_config_file', False)
-        newrelic_env = config.get('newrelic_environment', 'production')
-        if newrelic_config_file:
-            newrelic_agent.initialize(
-                newrelic_config_file, newrelic_env)
-            _logger.info("Newrelic agent initialized")
-
 
     def pipe_new(self):
         pipe = os.pipe()

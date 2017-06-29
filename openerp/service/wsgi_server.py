@@ -41,11 +41,6 @@ import traceback
 import werkzeug.serving
 import werkzeug.contrib.fixers
 
-try:
-    from newrelic import agent as newrelic_agent
-except Exception:
-    pass
-
 import openerp
 import openerp.tools.config as config
 import websrv_lib
@@ -217,8 +212,6 @@ def application_unproxied(environ, start_response):
 def application(environ, start_response):
     if config['proxy_mode'] and 'HTTP_X_FORWARDED_HOST' in environ:
         return werkzeug.contrib.fixers.ProxyFix(application_unproxied)(environ, start_response)
-    elif config.get('newrelic_config_file', False):
-        return newrelic_agent.WSGIApplicationWrapper(application_unproxied)(environ, start_response)
     else:
         return application_unproxied(environ, start_response)
 
