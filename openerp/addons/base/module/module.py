@@ -301,6 +301,7 @@ class module(osv.osv):
             ('GPL-2 or any later version', 'GPL-2 or later version'),
             ('GPL-3', 'GPL Version 3'),
             ('GPL-3 or any later version', 'GPL-3 or later version'),
+            ('LGPL-3', 'LGPL-3'),
             ('AGPL-3', 'Affero GPL-3'),
             ('Other OSI approved licence', 'Other OSI Approved Licence'),
             ('Other proprietary', 'Other Proprietary')
