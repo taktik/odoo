@@ -3,7 +3,7 @@
 -->
 <openerp>
     <data>
-        <template id="auth_signup.login" inherit_id="web.login" name="Sign up - Reset Password">
+        <template id="" inherit_id="web.login" name="Sign up - Reset Password">
             <xpath expr="//button[@type='submit']" position="before">
                 <a t-if="signup_enabled" t-attf-href="/web/signup?{{ keep_query() }}" class="btn btn-link pull-right">Sign up</a>
                 <a t-if="reset_password_enabled" t-attf-href="/web/reset_password?{{ keep_query() }}" class="btn btn-link pull-right">Reset Password</a>
@@ -42,7 +42,9 @@
             <t t-call="web.login_layout">
                 <form class="oe_signup_form" role="form" method="post" t-if="not message">
 
-                    <t t-call="auth_signup.fields"/>
+                    <t t-call="auth_signup.fields">
+                        <t t-set="only_passwords" t-value="bool(token)"/>
+                    </t>
 
                     <p class="alert alert-danger" t-if="error">
                         <t t-esc="error"/>

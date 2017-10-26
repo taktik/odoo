@@ -174,7 +174,7 @@ class website(orm.Model):
                     values.update(sale_order_obj.onchange_fiscal_position(cr, SUPERUSER_ID, [],
                         values['fiscal_position'], [[6, 0, order_lines]], context=context)['value'])
 
-                values['partner_id'] = partner.id
+                values['partner_id'] = partner.id  # ------> TODO stop this mother fucker
                 sale_order_obj.write(cr, SUPERUSER_ID, [sale_order_id], values, context=context)
 
                 if flag_pricelist or values.get('fiscal_position') != fiscal_position:
