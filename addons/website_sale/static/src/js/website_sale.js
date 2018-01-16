@@ -19,13 +19,12 @@ $('.oe_website_sale').each(function () {
         });
     });
 
-    $(oe_website_sale).on("change", 'input[name="add_qty"]', function (event) {
+    $(oe_website_sale).on("change", 'input[name="add_qty"]', _.debounce(function (event) {
         product_ids = [];
         var product_dom = $(".js_product .js_add_cart_variants[data-attribute_value_ids]").last();
         product_dom.data("attribute_value_ids").forEach(function(entry) {
             product_ids.push(entry[0]);});
         var qty = $(event.target).closest('form').find('input[name="add_qty"]').val();
-
         openerp.jsonRpc("/shop/get_unit_price", 'call', {'product_ids': product_ids,'add_qty': parseInt(qty)})
         .then(function (data) {
             var current = product_dom.data("attribute_value_ids");
@@ -34,14 +33,14 @@ $('.oe_website_sale').each(function () {
             }
             product_dom.attr("data-attribute_value_ids", JSON.stringify(current)).trigger("change");
         });
-    });
+    }, 300));
 
     // change for css
     $(oe_website_sale).on('mouseup touchend', '.js_publish', function (ev) {
         $(ev.currentTarget).parents(".thumbnail").toggleClass("disabled");
     });
 
-    $(oe_website_sale).on("change", ".oe_cart input.js_quantity", function (event) {
+    $(oe_website_sale).on("change", ".oe_cart input.js_quantity", _.debounce(function (event) {
         var $input = $(this);
         var value = parseInt($input.val(), 10);
         var $dom = $(event.target).closest('tr');
@@ -86,7 +85,7 @@ $('.oe_website_sale').each(function () {
                 $("#cart_total").replaceWith(data['website_sale.total']);
             });
         });
-    });
+    }, 300));
 
     // hack to add and rome from cart with json
     $(oe_website_sale).on('click', 'a.js_add_cart_json', function (ev) {
