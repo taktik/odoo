@@ -809,10 +809,14 @@ class pos_order(osv.osv):
             location_id = order.location_id.id
             if order.partner_id:
                 destination_id = order.partner_id.property_stock_customer.id
+                if len(order.lines.filtered(lambda x: x.qty < 0)) > 0:
+                    destination_id = location_id
+                    location_id = order.partner_id.property_stock_customer.id
             elif picking_type:
                 if not picking_type.default_location_dest_id:
                     raise osv.except_osv(_('Error!'), _('Missing source or destination location for picking type %s. Please configure those fields and try again.' % (picking_type.name,)))
                 destination_id = picking_type.default_location_dest_id.id
+                location_id = picking_type.default_location_src_id.id
             else:
                 destination_id = partner_obj.default_get(cr, uid, ['property_stock_customer'], context=context)['property_stock_customer']
 
@@ -839,8 +843,8 @@ class pos_order(osv.osv):
                     'product_uos_qty': abs(line.qty),
                     'product_uom_qty': abs(uom_qty),
                     'state': 'draft',
-                    'location_id': location_id if line.qty >= 0 else destination_id,
-                    'location_dest_id': destination_id if line.qty >= 0 else location_id,
+                    'location_id': location_id,
+                    'location_dest_id': destination_id,
                 }, context=context))
                 
             if picking_id:
