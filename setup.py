@@ -164,7 +164,6 @@ setup(
         'vobject',
         'werkzeug',
         'xlwt',
-        'newrelic',
     ],
     extras_require={
         'SSL': ['pyopenssl'],
